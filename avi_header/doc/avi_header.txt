@@ -1,0 +1,203 @@
+/////////////////////////////////////////////////////////////////////////////////////////////
+// Copyright (c) 2010 Manfred Doudar, NICTA Ltd.
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+/////////////////////////////////////////////////////////////////////////////////////////////
+
+
+AVI_HEADER:  a utility library for querying video-file header information, using information
+documented on the web of AVI file header layout.
+
+
+    namespace nicta {
+    namespace vibe {
+    namespace header {
+
+        class avi_header;
+
+    } } } // namespace nicta::vibe::header
+
+
+
+NOTE/ LIMITATIONS:
+
+*  AVI headers can be complex, and contain many interleaved data streams.  We confine ourselves
+   to querying only the **FIRST** data stream!
+
+
+
+WEB REFERENCES:
+
+1.  http://pvdtools.sourceforge.net/aviformat.txt
+2.  http://www.ymer.org/amir/2007/06/04/getting-the-number-of-frames-of-an-avi-video-file-for-opencv
+3.  http://msdn.microsoft.com/en-us/ms779631(VS.85).aspx ; then goto:  AVI RIFF File Reference -> AVIMAINHEADER
+
+
+
+-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+THE API:
+-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+
+
+    * explicit
+      avi_header(const char* filename) throw (nicta_exception);
+
+          - Constructor, taking the file name of the avi video-file we want to query as input.
+
+
+
+    * const char*
+      data_type() const throw (nicta_exception);
+
+          - Returns the data-type of the *FIRST* data-stream in file, this one of:
+            { "auds" (audio) ; "mids" (midi) ; "txts" (text) ; "vids" (video) }
+
+
+
+    * const char*
+      fourcc_codec() const throw (nicta_exception);
+
+          - (Usually) returns a four-letter code specifiying the the stream encoding, of the *FIRST* data-stream in file.
+
+          - Note:  *may* have trailing rubbish for some *rare* codec ids that are 2 or 3 characters long.
+
+
+
+    * int
+      msec_frame_delay() const throw ();
+
+          - Specifies the number of microseconds between frames.
+
+          - Indicates the overall timing for the file.
+
+
+
+    * int
+      max_data_rate() const throw ();
+
+          - Specifies the approximate maximum data rate of the file.
+
+          - Indicates the number of bytes per second the system must handle to present an AVI sequence.
+
+
+
+    * int
+      frame_count() const throw ();
+
+          - Total number of frames.
+
+
+
+    * int
+      initial_frame() const throw ();
+
+          - Specifies the initial frame for interleaved files (non-interleaved files should specify zero).
+
+
+
+    * int
+      stream_count() const throw ();
+
+          - Specifies the number of streams in the file.
+
+
+
+    * int
+      optimal_buffer_size() const throw ();
+
+          - Specifies the suggested buffer size for reading the file (in bytes).
+
+          - Size will generally be large enough to contain the largest chunk in the file.
+
+          - For an interleaved file, the buffer size should be large enough to read an entire record, and not just a chunk.
+
+
+
+    * int
+      frame_width() const throw ();
+
+          - Specifies the width of an AVI file image frame (in pixels).
+
+
+
+    * bool
+      frame_height() const throw ();
+
+          - Specifies the height of an AVI file image frame (in pixels).
+
+
+
+    * int
+      scale() const throw (nicta_exception);
+
+          - Used in conjunction with  member function rate() [below] to specify the time scale that
+            this stream will use, of the *FIRST* data-stream in file.
+
+          - Note:  divide  rate() / scale()  to get Frames Per Second (FPS).
+
+
+
+    * int
+      rate() const throw (nicta_exception);
+
+          - Used in conjunction with  member function scale() [above] to specify the time scale that
+            this stream will use, of the *FIRST* data-stream in file.
+
+          - Note:  divide  rate() / scale()  to get Frames Per Second (FPS).
+
+
+
+    * int
+      start_time() const throw (nicta_exception);
+
+          - Specifies the starting time of the *FIRST* data-stream in file, (usually zero)
+
+
+
+    * int
+      length() const throw (nicta_exception);
+
+          - Length of the *FIRST* data-stream in file, [in units specified by rate() and scale()].
+
+
+
+    * int
+      sample_size() const throw (nicta_exception);
+
+          - Sample size of the *FIRST* data-stream in file, (zero if it varies).
+
+
+
+    * bool
+      interleaved() const throw ();
+
+          - Returns `true' if the file is interleaved (contains multiple streams).
+
+
+
+    * bool
+      optimized_video_capture() const throw ();
+
+          - Returns `true' if file is optimized for video capture.
+
+
+
+    * bool
+      copyrighted_data() const throw ();
+
+          - Returns `true' if file contains copyrighted data.
+
+
+
+    * const char*
+      filename() const throw ();
+
+          - Return the filename passed on construction.
+
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+

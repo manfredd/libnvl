@@ -1,0 +1,371 @@
+/////////////////////////////////////////////////////////////////////////////////////////////
+// Copyright (c) 2010 Manfred Doudar, NICTA Ltd.
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+/////////////////////////////////////////////////////////////////////////////////////////////
+
+
+One directory up from here (the root directory of this package), the INSTALL file details
+how you would go about installing the Nicta libraries.
+
+The purpose of this document is to detail some nuances about the 3rd party libraries contained
+herein, bug fixes made to OpenCV, and how some things were built (ffmpeg, and OpenCV) - useful
+if you intend to build from source packages.  As detailed elsewhere, you MUST use the OpenCV 
+supplied with this package (and whence take note of how to build OpenCV, explained herein below).
+
+A note about PGR setup is made at the very end of this document - directory structure and
+dependencies for proper integration with the Nicta libraries in this release.
+
+
+
+---------------------------------------------------------------------------------
+IMPORTANT:
+
+You should only use the OpenCV distributed with **THIS** release, since there are
+bug fixes here not available on the main trunk, and furthermore is a consequence
+of the guys at OpenCV having broken interface more times than I care to count in
+the course of development of these libraries.  Contained herein is a patched
+OpenCV-1.1_pre1 release with fixes to work under linux (including file-writing),
+and bugs fixes to cvMatND predominantly, among others!
+---------------------------------------------------------------------------------
+
+
+****************
+FFMPEG:
+****************
+
+This is a necessary dependency of OpenCV.  Included here is a source tar-ball of FFMPEG.
+FFMPEG unfortunately is sometimes broken from on release to another, and so we include
+a source tar-ball known to work for convenience.  You do not have to use this tar-ball
+and can instead opt for another and more current version - it is up to you - this one
+however works for me.
+
+How to build ffmpeg from source, using the tar-ball in this release:
+
+
+1.  CL>  tar jxvf ffmpeg_revision_12779_10April2008.tar.bz2
+
+      - this will result in a directory named `ffmpeg'
+
+
+2.  CL>  cd ffmpeg
+
+
+3.  Run `configure', naming your install path.  For purpose of explanation, we will
+    use:  `/usr/local/opt'  but you can choose anything else (but you will need to make
+    sure you have permissions to install to location of choice).  You should also
+    be sure to have the appropriate ffmeg dependencies installed beforehand!  Being
+    that the source tar-ball herein is a little aged, some dependencies associated
+    with the options below may no longer be available - in that case excise those
+    options.
+
+    For readability, we split the configure options over multiple lines - DO NOT DO THIS! ..
+    ..rather, all configure options should be on the one line.  You may opt to
+    omit the option `--enable-gpl' (depending on your licensing concerns).  Enable
+    other options as you see fit, depending on the dependencies you are prepared to
+    install.
+
+    For firewire support you will need 3rd-party libraries:  {libraw1394,libdc1394,libdc1394-control}
+
+    You **MUST** however have options:  `--enable-shared'.
+    You **MUST** have option:  `--enable-libdc1394'  to enable firewire support.
+
+    We disable h26* {encoders, decoders, muxers, demuxers} owing to an API change
+    in libx264.
+
+
+    CL>  ./configure --prefix=/usr/local/opt
+                     --enable-avfilter
+                     --enable-avfilter-lavf
+                     --enable-pthreads
+                     --enable-gray
+                     --enable-shared
+                     --enable-gpl
+                     --enable-liba52
+                     --enable-libdc1394
+                     --enable-libfaac
+                     --enable-libfaad
+                     --enable-libgsm
+                     --enable-libmp3lame
+                     --enable-libtheora
+                     --enable-libvorbis
+                     --enable-libxvid
+                     --enable-x11grab
+                     --disable-encoder=h261
+                     --disable-encoder=h263
+                     --disable-encoder=h263p
+                     --disable-decoder=h261
+                     --disable-decoder=h263
+                     --disable-decoder=h263i
+                     --disable-decoder=h264
+                     --disable-muxer=h261
+                     --disable-muxer=h263
+                     --disable-muxer=h264
+                     --disable-demuxer=h261
+                     --disable-demuxer=h263
+                     --disable-demuxer=h264
+
+    CL>  make
+
+    CL>  make install
+
+
+4.  Now that FFMPEG has been installed, you **MUST**:
+
+    ...assuming your install directory (at --prefix above) was:  /usr/local/opt
+    and you used the source tar-ball in this package then you need to make 
+    some soft-links ..effectively, placing all ffmpeg headers in /usr/local/opt/include
+    within a subdriectory, namely  /usr/local/opt/include/ffmpeg.  Yes, the ffmeg
+    guys messed up with the packaging of this tar-ball.  See below for fix:
+
+
+    CL>  cd /usr/local/opt/include
+
+    CL>  mkdir ffmpeg
+
+    CL>  cd ffmpeg
+
+    CL>  ln -s ../libavutil/adler32.h
+    CL>  ln -s ../libavutil/avstring.h
+    CL>  ln -s ../libavutil/avutil.h
+    CL>  ln -s ../libavutil/base64.h
+    CL>  ln -s ../libavutil/common.h
+    CL>  ln -s ../libavutil/crc.h
+    CL>  ln -s ../libavutil/fifo.h
+    CL>  ln -s ../libavutil/intfloat_readwrite.h
+    CL>  ln -s ../libavutil/log.h
+    CL>  ln -s ../libavutil/lzo.h
+    CL>  ln -s ../libavutil/mathematics.h
+    CL>  ln -s ../libavutil/md5.h
+    CL>  ln -s ../libavutil/mem.h
+    CL>  ln -s ../libavutil/random.h
+    CL>  ln -s ../libavutil/rational.h
+    CL>  ln -s ../libavutil/sha1.h
+    CL>  ln -s ../libavformat/avformat.h
+    CL>  ln -s ../libavformat/avio.h
+    CL>  ln -s ../libavformat/rtsp.h
+    CL>  ln -s ../libavformat/rtspcodes.h
+    CL>  ln -s ../libavfilter/avfilter.h
+    CL>  ln -s ../libavdevice/avdevice.h
+    CL>  ln -s ../libavcodec/avcodec.h
+    CL>  ln -s ../libavcodec/opt.h
+
+
+
+****************
+OpenCV:
+****************
+
+As mentioned now several times already, we have uncovered several bugs in OpenCV.
+Troll the internet, and you will find several bug submitters, but guys at OpenCV
+do not always incorporate reported bugs into their next release - for that reason,
+we have not bothered to report bugs either.  Furthermore, the fact that the
+development team at OpenCV seem perfectly happy to break interfaces, then until I
+have the time to re-engineer some removed functionality, or port to a new API,
+please use the OpenCV tar-ball here - this is NOT advisory, the is a MUST!! that
+is to say, you **MUST** use and build OpenCV from source, and use the source
+tar-ball provided in this release.
+
+Anyone who wants to take the energy to reconcile these libraries with the latest
+OpenCV offerings, and contribute back, is most welcome.
+
+How to build OpenCV from source, using the tar-ball in this release:
+
+
+1.  CL>  tar jxvf opencv-1.1.0_pre1.tar.bz2
+
+      - this will result in a directory named `opencv-1.1.0_pre1'
+
+
+2.  CL>  cd opencv-1.1.0_pre1
+
+
+3.  Run `configure', naming your install path.  For purpose of explanation, we will
+    use:  `/usr/local/opt/OpenCV_1.1pre1'  but you can choose anything else (but you 
+    will need to make sure you have permissions to install to location of choice).
+    You should also be sure to have **ALL** the appropriate OpenCV dependencies 
+    installed beforehand!
+
+    For readability, we split the configure options over multiple lines - DO NOT DO THIS! ..
+    ..rather, all configure options should be on the one line.
+
+
+    CL>  ./configure --prefix=/usr/local/opt/OpenCV_1.1pre1
+                     --with-gtk
+                     --enable-apps
+                     --with-x
+                     --with-ffmpeg
+                     --enable-shared
+                     --with-pic
+                     --with-1394libs
+                     --without-quicktime
+
+    CL>  make
+
+    CL>  make install
+
+
+4.  Now that OpenCV has been installed, you **MUST**:
+
+    ...assuming your install directory (at --prefix above) was:  /usr/local/opt/OpenCV_1.1pre1
+    and you used the source tar-ball in this package then you need to copy some files
+    into appropriate locations.  See below:
+
+    From the top of (and within) the OpenCV source directory, issue the following copy commands:
+
+
+    CL>  cp  cvconfig.h  /usr/local/opt/OpenCV_1.1pre1/include/opencv
+    CL>  cp  otherlibs/highgui/*.h  /usr/local/opt/OpenCV_1.1pre1/include/opencv
+    CL>  cp  otherlibs/highgui/lib_highgui.la  /usr/local/opt/OpenCV_1.1pre1/lib
+    CL>  cp  otherlibs/highgui/.libs/lib_highgui.a  /usr/local/opt/OpenCV_1.1pre1/lib
+
+
+
+###########################################################################################
+FILE LISTING OF CHANGES TO OPENCV-1.1.0pre1:
+###########################################################################################
+
+Rather than detail the fixes made to OpenCV-1.1.0_pre1, we list the files changed.
+
+In all cases, the original file is retained, and appended with a ".OLD" extension, so
+that by issuing a `diff' at the command-line you will be able to get a summary of the
+fixes made.
+
+In the case of file-writing under linux, it is common knowledge that in OpenCV-1.1 file
+writing was broken.  We took the trouble to bring in the working file-writing in ffmpeg
+from OpenCV-1.0.  As consequence, some new files that made their appearance in OpenCV-1.1
+in connection to file-writing have had their names changed by appending them with a
+"*.HIDE" extension.
+
+In one instance, a new file is introduced - effectively the spliting of `loadsave.cpp' into
+two:  a header-file (loadsave.h) and a translation-unit (loadsave.cpp).
+
+
+FILE LISTING:
+-------------
+
+ opencv-1.1.0_pre1/configure                                      configure            ;   configure.OLD
+ opencv-1.1.0_pre1/configure.in                                   configure.in         ;   configure.in.OLD
+ opencv-1.1.0_pre1/cxcore/include/cxmisc.h                        cxmisc.h             ;   cxmisc.h.OLD
+ opencv-1.1.0_pre1/cxcore/src/cxarray.cpp                         cxarray.cpp          ;   cxarray.cpp.OLD
+ opencv-1.1.0_pre1/cv/src/calibration.cpp                         calibration.cpp      ;   calibration.cpp.OLD
+ opencv-1.1.0_pre1/otherlibs/highgui/Makefile.am                  Makefile.am          ;   Makefile.am.OLD
+ opencv-1.1.0_pre1/otherlibs/highgui/Makefile.in                  Makefile.in          ;   Makefile.in.OLD
+ opencv-1.1.0_pre1/otherlibs/highgui/_highgui.h                   _highgui.h           ;   _highgui.h.OLD
+ opencv-1.1.0_pre1/otherlibs/highgui/cvcap.cpp                    cvcap.cpp            ;   cvcap.cpp.OLD
+ opencv-1.1.0_pre1/otherlibs/highgui/cvcap_dc1394.cpp             cvcap_dc1394.cpp     ;   cpcap_dc1394.cpp.OLD
+ opencv-1.1.0_pre1/otherlibs/highgui/cvcap_ffmpeg.cpp             cvcap_ffmpeg.cpp     ;   cvcap_ffmpeg.cpp.OLD
+ opencv-1.1.0_pre1/otherlibs/highgui/cvcap_v4l.cpp                cvcap_v4l.cpp        ;   cvcap_v4l.cpp.OLD
+ opencv-1.1.0_pre1/otherlibs/highgui/grfmt_exr.cpp                grfmt_exr.cpp        ;   grfmt_exr.cpp.OLD
+ opencv-1.1.0_pre1/otherlibs/highgui/grfmt_exr.h                  grfmt_exr.h          ;   grfmt_exr.h.OLD
+ opencv-1.1.0_pre1/otherlibs/highgui/loadsave.cpp                 loadsave.cpp         ;   loadsave.cpp.OLD
+ opencv-1.1.0_pre1/otherlibs/highgui/loadsave.h                   [ **NEW** ]          ;   N/A
+ opencv-1.1.0_pre1/otherlibs/highgui/cvcap_gstreamer.cpp          cvcap_gstreamer.cpp  ;   cvcap_gstreamer.cpp.HIDE
+ opencv-1.1.0_pre1/otherlibs/highgui/cvcap_images.cpp             cvcap_images.cpp     ;   cvcap_images.cpp.HIDE
+ opencv-1.1.0_pre1/otherlibs/highgui/cvcap_unicap.cpp             cvcap_unicap.cpp     ;   cvcap_unicap.cpp.HIDE
+
+
+
+****************
+MISCELANEOUS:
+****************
+
+   ------------------------------------
+ * 1394 Firewire:  
+   ------------------------------------
+
+   Getting cameras to function under Linux can be problematic at times, but ulitmately
+   comes down to having your libraries appropriately configured (see above for ffmpeg,
+   and OpenCV).
+
+   Other than libraries of course, there are permissions that you must also consider.
+
+   To get your cameras functioning under Linux, you have to be sure you are part of
+   the following groups, of which if memory serves, only `video' is mandatory, maybe
+   even `plugdev' too.  You will need read & write permissions for video.
+
+       - video
+       - plugdev
+       - disk
+       - haldaemon
+
+
+   You may also want to install `dvgrab' and `corriander' if you continue to have
+   problems.  `corriander' is a good test to see if your system can talk to your camera.
+
+
+
+ * "VIDEO1394_IOC_LISTEN_CHANNEL failed!"
+
+   Sometimes when initiating comms with your camera, you may get a message like:
+
+     "(capture.c) VIDEO1394_IOC_LISTEN_CANNEL ioctl failed!"
+
+   Can't remember which, but likely inside of ffmpeg, or one of the libdc1394 libraries
+   (probably dc1394), there is code that causes this problem - which is result from the
+   problem that video1394 is still listening on some channel, and won't re-initialize.
+
+   To quote from the libdc1394 v2.x FAQ [http://damien.douxcahmps.net/iee1394/libdc1394/v2.x/faq]:
+
+
+     the fix is to call ioctl(open(device, O_RDONLY),VIDEO1394_IOC_UNLISTEN_CHANNEL,&channel)
+     where "device" is a char pointer to your video1394 character device driver (by default
+     "/dev/video1394/0" if your host card is port 0) and "channel" is an int variable
+     initialized to the IEEE 1394 ISO channel previously allocated to your camera (usually
+     numbered from 0 on each host...
+
+
+   In short, until someone fixes this, you may sometimes fail to connect to your camera.  In
+   such cases, just try again, and you should be good.
+
+
+
+   ------------------------------------
+ * Point-Grey Research (PGR) Libraries:
+   ------------------------------------
+
+   If you've purchased a PGR Stereo Bumblebee camera, you will need to install the 
+   FlyCaputre2 library from PGR.
+
+   You will need the following libraries installed:
+
+     - video1394
+     - raw1394
+     - ohci1394
+     - ieee1394
+     - libusb
+
+   You will need `libusb' regardless of whether you connect via usb or not.
+
+
+   You will in all instances need read-write-execute permissions on device `usb' and
+   `video1394', even though you are only using a firewire port - some strange craziness
+   particular to PGR setups... ask PGR support for more information.
+
+
+   Finally, wherever you choose to install your PGR libraries, be sure to have the header
+   files under a directory called `flycapture', see below:
+
+
+               PGR-root
+                  |
+        -+-----------------+-
+         |                 |
+        lib             include
+                           |
+                      ---------+-
+                               |
+                           flycapture
+
+
+
+   ..all PGR headers will reside in directory `include/flycapture/', while all PGR shared
+   libraries will reside under `lib/'.
+
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+

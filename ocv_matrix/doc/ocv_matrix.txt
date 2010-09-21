@@ -1,0 +1,971 @@
+/////////////////////////////////////////////////////////////////////////////////////////////
+// Copyright (c) 2010 Manfred Doudar, NICTA Ltd.
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+/////////////////////////////////////////////////////////////////////////////////////////////
+
+
+MINI NICTA MATRIX LIBRARY HOWTO:  as stated, this is a mini-howto, and not full
+documentation (which for the moment, the API is the best source).
+
+The unit test, though doesn't provide complete code coverage remains the best source
+for examples of use.  We aim to briefly tour the image API in this document.  Advanced
+usage can be inferred from this document in consultation with the library API.
+
+
+
+NOTES & CURRENT CONSTRAINTS:
+
+By time of this release, the OpenCV creators have since released OpenCV-2.0 and
+OpenCV-2.1.
+
+If we understand correctly, OpenCV-2.1 aims to give OpenCV an object-oriented
+interface - with no major change since OpenCV-2.0 other than that, and possibly
+bug-fixes.
+
+OpenCV-2.0 however, other than some bug-fixes (and purports to fix video-file 
+writing that was broken in going from OpenCV-1.0 to OpenCV-1.1-pre1 in Linux),
+actually results in API breakages from OpenCV-1.1-pre1 - very bad.  One day, I
+hope, people in the open-source community realize that you can't just break API
+from one version to the next because you feel like it (in this case, OpenCV
+removes some functions altogether!).
+
+Hence, for the time-being, until I re-engineer OpenCV-2.0 and beyond, use the
+version of OpenCV distributed with these libraries!  This is NOT an advisory note,
+it is a MUST.
+
+The OpenCV distributed here is by and large OpenCV-1.1-pre1, but I have fixed
+the issue of writing video files under Linux, and also and importantly, have fixed
+a few bugs in the matrix routines that deal with multi-dimensional matrices, upon
+which this library and several others in this release depend.
+
+
+In short, build the OpenCV library from the source tar-ball provided in **this**
+distribution!
+
+
+Finally, dimnsionality of tensors and of matrices is limited to 64, an OpenCV
+limitation; CV_CN_MAX and CV_MAX_DIM respectively.
+
+
+TODO:
+
+*  Expand on the capabilities of multi-dimensional matrices in particular.
+
+*  One day when I have need or inclination, engineer a sparse matrix class with
+   OpenCV; in much the same fashion as the one presented here for dense matrices.
+
+
+
+OVERVIEW:
+
+This document more being a HowTo will not elicit every usage and scenario, but hope
+users can infer such from this document, and the API.
+
+Functionality encompassed herein allows users to:
+
+- support for multi-dimensional matrices, with tensor elements
+
+- extensible support for user-defined algorithms on matrices
+
+- support for 1-dimensional matrices (aka vectors); both as row and column vectors
+
+- opaque support for 0-dimensional matrices (aka points)
+
+- support for common matrix operations
+
+- support for reshaping matrices
+
+- ability to save and load matrices from xml-files
+
+- conveneint sub-script notation for element access
+
+- availability of a matrix_cast
+
+- miscellaneous other capabilities
+
+
+
+
+-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+THE API:
+-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+
+
+[[ Preliminaries ]]
+
+
+The matrix class is templated on 4 parameters, the last of which is implementation detail:
+
+    namespace nicta {
+    namespace ocv {
+    namespace matrix {
+
+        template < typename T                               // the data type
+                 , unsigned int D                           // the dimensionality of the matrix
+                 , unsigned int C = 1                       // the dimensionality of the tensor elements (in image terms, the number of channels)
+                 , unsigned int U = D                       // implementation detail:  dimensionality of matrix at construction
+                 >
+        class matrix;
+
+    } } } // namespace nicta::ocv::matrix
+
+
+A matrix of dimension D=K inherits recursively from matrices of dimension D=K-1 through to D=0.
+A matrix of dimension D=0 is not explicitly constructible.  Obviously, only matrices where 
+dimensionality D is equal to dimensionality of matrix U at construction U are explicitly
+constructible.
+
+
+
+[[ Extents ]]
+
+An extents object is the means by which we dictate the length of each matrix dimension.
+The extents class is templated on dimension (the matrix dimension:
+
+    namespace nicta {
+    namespace ocv {
+    namespace matrix {
+
+        template <unsigned int D>
+        class extents;
+
+    } } } // namespace nicta::ocv::matrix
+
+
+    * extents() throw ();
+
+          - Constructs an empty extents object having dimension D.
+
+          - Can be initialized by means of assignment of a comma seperated list of D extent lengths.
+
+
+
+    * extents(unsigned int e0 [, .., unsigned int eN]) throw ();
+
+          - Constructs an extents object having dimension D, initialized with extent lengths.
+
+          - Maximal length is bound by OpenCV CV_MAX_DIM, which is 64 at time of writing.
+
+
+
+    * extents(unsigned int* data, unsigned int size) throw (std::length_error, std::bad_exception);
+
+          - Constructs an extents object having dimension D, initialized with a C-array of extent lengths.
+
+          - `size' being the length of the C-array, and must equal the dimension length D.
+
+
+
+    * template <typename T>
+      explicit extents(std::vector<T>& e) throw (std::length_error);
+
+          - Constructs an extents object having dimension D, initialized with a vector of extent lengths.
+
+
+
+    * bool operator==(const extents<D>& rhs) const throw ();
+
+          - Canonical comparitor.
+
+
+
+    * bool operator!=(const extents<D>& rhs) const throw ();
+
+          - Canonical comparitor.
+
+
+
+    * extents<D>&
+      operator=(unsigned int e) throw (std::length_error);
+
+          - In conjunction with overloaded comma-operator, allows initialization as follows:
+
+                extents<5> e;
+                e = 7, 2, 4, 2, 3;
+
+
+
+    * extents<D>&
+      operator,(unsigned int e) throw (std::length_error);
+
+          - In conjunction with overloaded assignment operator, allows initialization as follows:
+
+                extents<5> e;
+                e = 7, 2, 4, 2, 3;
+
+
+
+    * unsigned int
+      operator[](unsigned int i) const throw (std::out_of_range);
+
+          - Subscript operator to access extent length at index (aka dimension) `i', indexed relative to 0.
+
+
+
+    * typename extents<D>::value_type*
+      operator()() throw (std::length_error);
+
+          - Returns extents as a C-array.
+
+          - Throws an exception if extents object does not have D initialized extent lengths.
+
+
+
+    * typename extents<D>::size_type
+      size() const throw ();
+
+          - Returns the size of the extents object (`D' if the extents object has been initialized).
+
+
+
+    * unsigned int length() const throw ();
+
+          - The cummulative sum across all extent dimensions.
+
+
+
+    * unsigned long int product() const throw ();
+
+          - The scalar product across all extent dimensions.
+
+
+
+
+[[ Matrix Constrution ]]
+
+Construction takes many forms:  using extents, C-arrays, C++0x initializer lists, copy construction, from file, from image.
+
+Note, 0-dimensional matrices can not be explicitly constructed.
+
+
+    * explicit matrix(const extents<D>& e, T* data = 0);
+    * explicit matrix(const extents<1>& e, T* data = 0, VectorModel model = Row);
+
+          - First form constructs a D-dimensional matrix from an extents object, and
+            optionally initializes it with a C-array.
+
+          - Second form constructs a 1-dimensional matrix, defaulting as a row-vector.
+
+
+
+    * matrix(const extents<D>& e, std::initializer_list<T>&& data);
+    * matrix(const extents<1>& e, std::initializer_list<T>&& data, VectorModel model = Row);
+
+          - First form constructs a D-dimensional matrix from an extents object, and an
+            initialzer list.
+
+          - Second form constructs a 1-dimensional matrix, defaulting as a row-vector.
+
+
+
+    * matrix(const extents<D>& e, T value);
+    * matrix(const extents<1>& e, T value, VectorModel model = Row);
+
+          - First form constructs a D-dimensional matrix from an extents object, and
+            initializes all matrix elements to the constant `value'.
+
+          - Second form constructs a 1-dimensional matrix, defaulting as a row-vector.
+
+
+
+    * matrix(const matrix<T, D, C, U>& m);
+
+          - Canonical copy constructor.
+
+
+
+    * matrix(const ::CvMatND* m) throw (std::invalid_argument, std::bad_exception);
+      matrix(const ::CvMat* m) throw (std::invalid_argument, std::bad_exception);
+
+          - First form used to construct n-dimensional matrix, D=n, with n greater
+            than 2, from an OpenCV matrix pointer.
+
+          - Second form used to construct a 1-dimensional or 2-dimensional matrix, 
+            from an OpenCV matrix pointer.
+
+
+
+    * matrix(const char* filename);
+
+          - Constructs a matrix from xml-file.
+
+
+
+
+[[ Member Functions For Matrices Of All Dimensions ]]
+
+
+    * [const] matrix<T, 0, C, U>&
+      operator()(unsigned int i1, .., unsigned int iU) [const] throw (std::out_of_range);
+
+          - Slices to one particular tensor tuple in the matrix.
+
+          - This is equivalent to using the subscript `operator[]' on the matrix repeatedly.
+
+
+
+    * template <typename nicta::ocv::matrix::Native N = nicta::ocv::matrix::Handle>
+      [const] typename nicta::ocv::matrix::native_type<U, N>::type &
+      native_handle() [const] throw ();
+
+          - Returns the underlying native matrix type associated with the matrix.
+
+
+
+     * unsigned int
+       channels() const throw ();
+
+           - Return length of tensor tuples (this will be `C').
+
+
+
+    * bool
+      is_view() const throw ();
+
+           - Return `true' if this matrix is a reference (aka "view").  Return `false' if this
+             is a matrix copy in its own right.
+
+           - This is useful since some matrix operations return pointers to matrices.
+
+
+
+    * void
+      set(T value) throw ();
+
+          - Set all matrix elements to `value'.
+
+
+
+    * void
+      negate() throw ();
+
+          - Negate all matrix elements.
+
+
+
+    * void
+      zero() throw ();
+
+          - Zero all matrix elements.
+
+
+
+    * void
+      ones() throw ();
+
+          - Set all matrix elements to 1.
+
+
+
+    * void
+      identity(T value = 1) throw ();
+
+          - Make the matrix an identity matrix (default: sets diagonal values all to 1).
+
+
+
+
+[[ Member Functions For Constructible Matrices ]]
+
+
+    * void
+      save_as(const char* filename) const;
+
+          - Save matrix to xml-file.
+
+
+
+    * matrix<T, D, C, U>&
+      operator=(const matrix<T, D, C, U>& rhs) throw ();
+
+          - Canonical copy constructor.
+
+
+
+    * [const] typename matrix_type<T, D, C, U>::type &
+      operator[](unsigned int i) [const] throw (std::out_of_range);
+
+          - Subscript operator to slice through matrix dimensions.
+
+
+
+    * unsigned int
+      extent(unsigned int i) const throw (std::out_of_range);
+
+          - Returns the length of the matrix extent along dimension `i'.
+
+
+
+    * void
+      extents(extents<D>& e) const throw (std::invalid_argument);
+
+          - Returns the extents object containing lengths across all matrix dimensions.
+
+
+
+    * template < unsigned int DD
+               , unsigned int CC = C
+               >
+      boost::shared_ptr<matrix<T, DD, CC, DD> >
+      reshape(extents<DD>& e) const throw (std::length_error, std::bad_exception);
+
+          - Reshape matrix across dimensions and extents.
+
+          - Resulting matrix must be dimensionally consistent in DD, and CC with input D, and C respectively!
+
+          - A matrix view is returned.
+
+
+
+    * template < typename V
+               , tyepname T
+               , unsigned int D
+               , unsigned int C
+               >
+      boost::shared_ptr<matrix<V, D, C, D> >
+      matrix_cast(matrix<T, D, C, D>& m) throw ();
+
+          - Casts matrix from type to another.
+
+          - A new matrix is returned.
+
+
+
+
+[[ Member Functions Particular To Matrices Of 0-Dimension (aka Tensors, or Matrix Elements) ]]
+
+When a matrix is eventually sliced and diced via the subscript operator[], eventually you will 
+need to manipulate matrix the elements themselves.  Keeping in mind that matrix elements are 
+tensors (or if you like, tuples), you will need to be able to get and set tensor (tuple) 
+elements of a matrix.  For this purpose, there is a specially defined callable operator for
+tensors.
+
+
+    * [const] typename nicta::ocv::matrix::matrix_type<T, 0, C, U>::type &
+      operator()(unsigned int channel = 0) [const] throw (std::out_of_range);
+
+          - Access the tensor element `channel' indexed from 0.
+
+          - Example:  consider a D-dimensional matrix of type T, bearing C-dimensional tensors:
+
+              matrix<T, D, C> mtx;                // the matrix
+              mtx[i_1][i_2]...[i_D-1](n);         // slice the matrix to a point, and access the nth tensor element
+
+
+
+
+[[ Member Functions Particular To Matrices Of 1-Dimension (aka Vectors) ]]
+
+
+    * boost::shared_ptr<nicta::ocv::matrix::matrix<T, 1, C, 1> >
+      transpose() const throw ();
+
+          - Transposes a 1-dimensional vector into a row or column vector, as the case may be.
+
+          - A new matrix is returned.
+
+
+
+    * nicta::ocv::matrix::VectorModel
+      model() const throw ();
+
+          - Returns the vector model, either:  `nicta::ocv::matrix::Row'  or  `nicta::ocv::matrix::Column'.
+
+
+
+
+[[ Member Functions For Matrices Of 2-Dimensions ]]
+
+
+    * unsigned int
+      rows() const throw ();
+
+          - Returns the number of rows associated with the matrix.
+
+
+
+    * unsigned int
+      columns() const throw ();
+
+          - Returns the number of columns associated with the matrix.
+
+
+
+    * boost::shared_ptr<nicta::ocv::matrix::matrix<T, 2, C, 2> >
+      rows(unsigned int i) const throw (std::out_of_range);
+
+          - Returns the `i'th row of the matrix.
+
+          - A matrix view is returned.
+
+
+
+    * boost::shared_ptr<nicta::ocv::matrix::matrix<T, 2, C, 2> >
+      columns(unsigned int i) const throw (std::out_of_range);
+
+          - Returns the `i'th column of the matrix.
+
+          - A matrix view is returned.
+
+
+
+    * boost::shared_ptr<nicta::ocv::matrix::matrix<T, 2, C, 2> >
+      rows(unsigned int begin,
+           unsigned int end,
+           nicta::quantity::step<unsigned int> step = nicta::quantity::step<unsigned int> (1)
+          ) const throw (std::out_of_range);
+
+          - Returns every `step' rows between `begin' and `end' in the matrix, inclusive.
+
+          - A matrix view is returned.
+
+
+
+    * boost::shared_ptr<nicta::ocv::matrix::matrix<T, 2, C, 2> >
+      columns(unsigned int begin,
+              unsigned int end
+             ) const throw (std::out_of_range);
+
+          - Returns every `step' columns between `begin' and `end' in the matrix, inclusive.
+
+          - A matrix view is returned.
+
+
+
+    * double
+      trace() const throw ();
+
+          - Returns the matrix trace (ie. the diagonal sum).
+
+
+
+    * double
+      determinant() const throw (std::domain_error)
+
+          - Returns the matrix determinant.
+
+          - The matrix type T can not be of integral type.
+
+
+
+    * boost::shared_ptr<nicta::ocv::matrix::matrix<T, 2, C, 2> >
+      diagonal() const throw ();
+
+          - Returns an a column matrix of the diagonal.
+
+          - Source matrix does not have to be square.
+
+          - A matrix view is returned.
+
+
+
+    * boost::shared_ptr<nicta::ocv::matrix::matrix<T, 2, C, 2> >
+      transpose() const throw ();
+
+          - Transposes a 2-dimensional matrix.
+
+          - A new matrix is returned.
+
+
+
+    * boost::shared_ptr<nicta::ocv::matrix::matrix<T, 2> >
+      ATA() const;
+
+          - Computes:  `transpose(A) * A'
+
+          - A new matrix is returned.
+
+
+
+    * boost::shared_ptr<nicta::ocv::matrix::matrix<T, 2> >
+      AAT() const;
+
+          - Computes:  `A * transpose(A)'
+
+          - A new matrix is returned.
+
+
+
+    * template <nicta::ocv::matrix::DecompositionModel M  = nicta::ocv::matrix::LU>
+      boost::shared_ptr<nicta::ocv::matrix::matrix<T, 2> >
+      inverse() const throw (std::domain_error, std::logic_error, std::bad_exception);
+
+          - Computes the matrix inverse (or pseudo-inverse) using one of several models.
+
+          - Use the SVD model to compute inverse of non-square matrices.
+
+          - Use the SVD_PSYM model to compute inverse for a symmetric, positively defined (square) matrix.
+
+          - Use the LU model for all other cases (modulo SVD and SVD_PSYM models).
+
+          - The matrix type T can not be of integral type.
+
+          - A new matrix is returned.
+
+
+
+    * template <nicta::ocv::matrix::SVDSourceModel M = nicta::ocv::matrix::Immutable>
+      boost::shared_ptr< boost::tuples::tuple< boost::shared_ptr<nicta::ocv::matrix::matrix<T, 2> >          // resulting svd matrix     [W]
+                                             , boost::shared_ptr<nicta::ocv::matrix::matrix<T, 2> >          // left orthogonal matrix   [U]
+                                             , boost::shared_ptr<nicta::ocv::matrix::matrix<T, 2> >          // right orthogonal matrix  [V]
+                                             >
+                       >
+      svd(nicta::ocv::matrix::SVDModel m = nicta::ocv::matrix::Flat);
+
+          - Computes the Singular Value Decomposition of the matrix instance M:  `M = U * W * transpose(V)'
+
+          - diagonal(W) = eigenvalues of M.
+
+          - columns(U) = eignevectors of M.
+
+          - columns(V) = eigenvectors of M.
+
+          - Iff M is **not** square-symmetric, then:  diagonal(W) = singular values of M ; and can not infer anything of U, V.
+
+          - Dimensionality:  M[p x q] ; U[p x p] ; W[p x q] ; V[q x q]
+
+          - By default, `V' **not** `transpose(V)' is returned, but can be overriden by user with appropriate SVDModel choice.
+
+          - By default, the source matrix `M' goes through the computation unmodified; however, if the user is prepared to
+            junk the source matrix, computation can be sped up with an appropriate change in the SVDSourceModel template parameter.
+
+          - If user is not interested in all tuples of output, boost::tuples::tie in conjunction with boost::tuples::ignore is handy.
+
+
+
+    * template <nicta::ocv::matrix::DecompositionModel M = nicta::ocv::matrix::LU>
+      boost::shared_ptr<nicta::ocv::matrix::matrix<T, 2> >
+      solve_sys(const nicta::ocv::matrix::matrix<T, 2>& b) const throw(std::domain_error, std::bad_exception);
+
+          - Solve the linear system:  `Mx = b' ; where `M' is this matrix instance, and we are solving for `x'.
+
+          - `M' must be a square matrix.
+
+          - Use the SVD decomposition model to solve a least-squares problem.
+
+          - Dimensionality:  M[n x n] ; x[m x 1] ; b[m x 1]
+
+
+
+    * boost::shared_ptr<nicta::ocv::matrix::matrix<T, 2> >
+      operator*(nicta::ocv::matrix::matrix<T, 2>& rhs) const throw (std::domain_error, std::bad_exception);
+
+          - Matrix multiplication.
+
+          - A new matrix is returned.
+
+
+
+    * boost::shared_ptr<nicta::ocv::matrix::matrix<T, 2> >
+      operator+(T value) const throw ();
+
+          - Element-wise addition of scalar `value' to this matrix instance.
+
+          - A new matrix is returned.
+
+
+
+    * boost::shared_ptr<nicta::ocv::matrix::matrix<T, 2> >
+      operator-(T value) const throw ();
+
+          - Element-wise subtraction of scalar `value' to this matrix instance.
+
+          - A new matrix is returned.
+
+
+
+    * boost::shared_ptr<nicta::ocv::matrix::matrix<T, 2> >
+      operator*(T value) const throw ();
+
+          - Element-wise multiplication of scalar `value' to this matrix instance.
+
+          - A new matrix is returned.
+
+
+
+    * boost::shared_ptr<nicta::ocv::matrix::matrix<T, 2> >
+      operator/(T value) const throw (std::logic_error);
+
+          - Element-wise division of scalar `value' to this matrix instance.
+
+          - The matrix type T restricted to be floating point, due to OpenCV rounding behaviour with integers.
+
+          - A new matrix is returned.
+
+
+
+    * boost::shared_ptr<nicta::ocv::matrix::matrix<T, 2> >
+      operator+(const nicta::ocv::matrix::matrix<T, 2>& rhs) const throw ();
+
+          - Element-wise addition of matrices is performed.
+
+          - A new matrix is returned.
+
+
+
+    * boost::shared_ptr<nicta::ocv::matrix::matrix<T, 2> >
+      operator-(const nicta::ocv::matrix::matrix<T, 2>& rhs) const throw ();
+
+          - Element-wise subtraction of matrices is performed.
+
+          - A new matrix is returned.
+
+
+
+    * boost::shared_ptr<nicta::ocv::matrix::matrix<T, 2> >
+      multiply(const nicta::ocv::matrix::matrix<T, 2>& rhs) const throw ();
+
+          - Element-wise multipliction of matrices is performed.
+
+          - A new matrix is returned.
+
+
+
+    * boost::shared_ptr<nicta::ocv::matrix::matrix<T, 2> >
+      operator/(const nicta::ocv::matrix::matrix<T, 2>& rhs) const;
+
+          - Element-wise division of matrices is performed.
+
+          - The matrix type T restricted to be floating point, due to OpenCV rounding behaviour with integers.
+
+          - A new matrix is returned.
+
+
+
+
+[[ FRIEND FUNCTIONS ]]
+
+
+    * template <typename T_>
+      friend
+      boost::shared_ptr<nicta::ocv::matrix::matrix<T_, 2> >
+      abs(const nicta::ocv::matrix::matrix<T_, 2>& m) throw ();
+
+          - Element-wise absolute value of each matrix element.
+
+          - A new matrix is returned.
+
+
+
+    * template <typename T_>
+      friend
+      boost::shared_ptr<nicta::ocv::matrix::matrix<T_, 2> >
+      reciprocal(const nicta::ocv::matrix::matrix<T_, 2>& m, double multiplier = 1.0) throw (std::domain_error);
+
+          - Element-wise reciprocal of each matrix element is taken, muliplied element-wise by `multiplier'.
+
+          - A new matrix is returned.
+
+
+
+    * template <typename T_>
+      friend
+      boost::shared_ptr<nicta::ocv::matrix::matrix<T_, 2> >
+      pow(const nicta::ocv::matrix::matrix<T_, 2>& m, double exponent) throw (std::domain_error);
+
+          - Element-wise raising of each matrix element to `exponent'.
+
+          - A new matrix is returned.
+
+
+
+    * template <typename T_>
+      friend
+      boost::shared_ptr<nicta::ocv::matrix::matrix<T_, 2> >
+      exp(const nicta::ocv::matrix::matrix<T_, 2>& m) throw ();
+
+          - Element-wise exponential of each matrix element.
+
+          - A new matrix is returned.
+
+
+
+    * template <typename T_>
+      friend
+      boost::shared_ptr<nicta::ocv::matrix::matrix<T_, 2> >
+      log(const nicta::ocv::matrix::matrix<T_, 2>& m) throw (std::domain_error);
+
+          - Element-wise natural-logarithm of each matrix element.
+
+          - A new matrix is returned.
+
+
+
+
+[[ as-Representation Friend Functions ]]
+
+
+    * template < typename Depth
+               , template <typename> class Pixel
+               >
+      friend
+      boost::shared_ptr<nicta::vibe::image::image<Depth, Pixel> >
+      as_image(const nicta::ocv::matrix::matrix< typename Depth::type
+                                               , 2
+                                               , Pixel<typename Depth::type>::components
+                                               , 2
+                                               >& matrix) throw (std::domain_error);
+
+          - Converts a 2-dimensional matrix to an image having Pixel_<Depth_>::components channels.
+
+
+
+    * template < typename Depth
+               , template <typename> class Pixel
+               >
+      friend
+      boost::shared_ptr< nicta::ocv::matrix::matrix< T_
+                                                   , 2
+                                                   , Pixel<typename nicta::vibe::image::depth<T_>::type>::components
+                                                   , 2
+                                                   >
+                       >
+      as_matrix(const nicta::vibe::image::image<typename nicta::vibe::image::depth<T_>::type, Pixel>& image) throw ();
+
+          - Converts an image to a 2-dimensional matrix.
+
+
+
+
+[[ USER-DEFINED ELEMENT-WISE FUNCTORS OVER MATRICES ]]
+
+Often times you will want to define your own element-wise operations over matrices;
+in fact the functions for 2-dimensional matrices:  { abs, reciprocal, pow, exp, log }
+are such examples.  However, in doing so there is a lot of boilerplate code, but with
+the aide of a helper function, writing your own such functions can be reduced to just
+defining the element-wise operation by means of a function object.
+
+The function object that you must define should implement one or more of the 5 callable
+functions presented below:
+
+
+    * template <typename T>                                                      // [OP_1]
+      void operator()(T& operand) const;
+
+          - May modify matrix elements (of type T) in place.
+
+
+
+    * template <typename T>                                                      // [OP_2]
+      void operator()(const T& operand);
+
+          - Functor is stateful.  Matrix (of type T) is immutable.
+
+
+
+    * template <typename T>                                                      // [OP_3]
+      void operator()(T& lhs, T& rhs) const;
+
+          - Accepts 2 matrices, both of whose elements (of type T) may be
+            modified in place.
+
+
+
+    * template <typename T>                                                      // [OP_4]
+      void operator()(T& lhs, const T& rhs) const;
+
+          - Accepts 2 matrices (of type T), where only one matrix may be
+            modified in place, and the other is immutable.
+
+
+
+    * template <typename T>                                                      // [OP_5]
+      void operator()(const T& lhs, const T& rhs);
+
+          - Functor is stateful.  Accepts 2 matrices (of type T), both
+            of which are immutable.
+
+
+
+Upon defining your Function-Object, having one or more of the callable functions
+described above, you can now invoke your functor element-wise over the input
+matrix (or matrices as the case may be), by calling one of 5 `matrix_op'
+overloads below, and found in header "functional.h":
+
+
+    * template < typename Functor
+               , typename T
+               , unsigned int D
+               , unsigned int C
+               >
+      void
+      matrix_op(matrix<T, D, C, D>& m,
+                const Functor& ftor
+               ) throw ();
+
+          - Invokes callable operator [OP_1] above.
+
+
+
+    * template < typename Functor
+               , typename T
+               , unsigned int D
+               , unsigned int C
+               >
+      void
+      matrix_op(const matrix<T, D, C, D>& m,
+                Functor& ftor
+               ) throw ();
+
+          - Invokes callable operator [OP_2] above.
+
+
+
+    * template < typename Functor
+               , typename T
+               , unsigned int D
+               , unsigned int C
+               >
+      void
+      matrix_op(matrix<T, D, C, D>& left,
+                matrix<T, D, C, D>& right,
+                const Functor& ftor
+               ) throw (std::length_error);
+
+          - Invokes callable operator [OP_3] above.
+
+          - Throws if dimension count or extents differ on matrices `left' and `right'.
+
+
+
+    * template < typename Functor
+               , typename T
+               , unsigned int D
+               , unsigned int C
+               >
+      void
+      matrix_op(matrix<T, D, C, D>& left,
+                const matrix<T, D, C, D>& right,
+                const Functor& ftor
+               ) throw (std::length_error);
+
+          - Invokes callable operator [OP_4] above.
+
+          - Throws if dimension count or extents differ on matrices `left' and `right'.
+
+
+
+    * template < typename Functor
+               , typename T
+               , unsigned int D
+               , unsigned int C
+               >
+      void
+      matrix_op(const matrix<T, D, C, D>& left,
+                const matrix<T, D, C, D>& right,
+                Functor& ftor
+               ) throw (std::length_error);
+
+          - Invokes callable operator [OP_5] above.
+
+          - Throws if dimension count or extents differ on matrices `left' and `right'.
+
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+

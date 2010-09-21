@@ -1,0 +1,907 @@
+/////////////////////////////////////////////////////////////////////////////////////////////
+// Copyright (c) 2010 Manfred Doudar, NICTA Ltd.
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+/////////////////////////////////////////////////////////////////////////////////////////////
+
+
+MINI NICTA IMAGE LIBRARY HOWTO:  as stated, this is a mini-howto, and not full
+documentation (which for the moment, the API is the best source).
+
+The unit test provided does not claim complete coverage, and not particularly
+structured; however this library has been stress-tested in production code for
+several years already, and very robust.  We aim to briefly tour the image API 
+in this document.  Advanced usage can be inferred from this document in 
+consultation with the library API.
+
+
+
+NOTES & CURRENT CONSTRAINTS:
+
+By time of this release, the OpenCV creators have since released OpenCV-2.0 and
+OpenCV-2.1.
+
+If we understand correctly, OpenCV-2.1 aims to give OpenCV an object-oriented
+interface - with no major change since OpenCV-2.0 other than that, and possibly
+bug-fixes.
+
+OpenCV-2.0 however, other than some bug-fixes (and purports to fix video-file 
+writing that was broken in going from OpenCV-1.0 to OpenCV-1.1-pre1 in Linux),
+actually results in API breakages from OpenCV-1.1-pre1 - very bad.  One day, I
+hope, people in the open-source community realize that you can't just break API
+from one version to the next because you feel like it (in this case, OpenCV
+removes some functions altogether!).
+
+Hence, for the time-being, until I re-engineer OpenCV-2.0 and beyond, use the
+version of OpenCV distributed with these libraries!  This is NOT an advisory note,
+it is a MUST.
+
+The OpenCV distributed here is by and large OpenCV-1.1-pre1, but I have fixed
+the issue of writing video files under Linux, and also and importantly, have fixed
+a few bugs in the matrix routines that deal with multi-dimensional matrices, upon
+which this library and several others in this release depend.
+
+
+In short, build the OpenCV library from the source tar-ball provided in **this**
+distribution!
+
+
+NOTES:
+
+*  See NOTES & CURRENT CONSTRAINTS section above!
+
+*  In the absence of parameter packs (variadics), we use the Boost.Preprocessor to
+   accommodate variable length parameter lists.  Consequently there is a bound on
+   the allowable length, dictated by Boost.PP.  This library default limits all
+   such lists to 11, but can be overriden by users, with a `-DNICTA_MAX_ARITY=N'
+   argument on compilation, where N is the arity.
+
+*  The image-class was almost the first to be conceived amongst this library
+   collection, and it was only until much later did we realize that images there
+   are domains where images are represented by more than just 1, 3, or 4 channels
+   - this is particularly true of  domains where hyperspectral cameras are in use.
+   In such domains, it is quite common to represent images as matrices.  In 
+   hind-sight, and if given the opportunity to re-write this class, it would be even
+   more general, and instead of using  an underlying IplImage, a cvMatND type would
+   be used for representation instead.  ..Oh well! maybe someday I just might.
+
+
+TODO:
+
+*  Back-engineer functionality into OpenCV-2.0 and up that has since resulted in
+   API breakages after OpenCV-1.1-pre1
+
+
+
+OVERVIEW:
+
+This document more being a HowTo will not elicit every usage and scenario, but hope
+users can infer such from this document, and the API.
+
+Functionality encompassed herein allows users to:
+
+- instantiate an image on pixel depth, and color space
+
+- support for { GRAY, RGB, BGR, RGBA, BGRA, XYZ, YCrCb, HSV, HLS, Lab, Luv, Bayer } image types
+
+- pixel depth and/or color space conversion
+
+- image slicing, and easy pixel access
+
+- comparison and assignment
+
+- image transaltions
+
+- image display, and annotation
+
+- converting images to matrix representations
+
+- miscellaneous other capabilities
+
+
+
+
+-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+THE API:
+-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+
+
+[[ Preliminaries ]]
+
+
+The image class is templated on pixel depth, and color space:
+
+    namespace nicta {
+    namespace vibe {
+    namespace image {
+
+        template < typename Depth = nicta::vibe::image::depth_8u                              // defaults to 8-bit unsigned
+                 , template <typename> class Pixel = nicta::vibe::image::bgr_p                // defaults to BGR
+                 >
+        class image;
+
+    } } } // namespace nicta::vibe::image
+
+
+
+[[ Static Meta-data ]]
+
+    * static const int depth;           // the bit depth
+
+    * static const int components;      // number of image planes
+
+    * static const bool bayer;          // `true' if the image is a Bayer tile, `false' otherwise
+
+    * static const bool monochrome;     // `true' if the image is grayscale, `false' otherwise
+
+    * static const bool is_integral;    // `true' if the image has integral bit depth, `false' otherwise
+
+    * static const char* pix_t;         // stringized name of the color space encoding associated with the image
+
+
+
+[[ Constrution ]]
+
+
+    * explicit image(const char* filename) throw (nicta::nicta_exception);
+
+          - Instantiates an image object from image file, making check on pixel depth.
+
+          - Unfortunately, because most image formats do not encode color space information in file, the file will be loaded
+            in the color space specified by the user (one of the template parameters to the image class).  The number of
+            components corresponding to the image in file must match the number of components associated with the color
+            space of the image object on construction.
+
+
+
+    * template < typename Functor
+               [, typename R1, .., typename Rn]
+               >
+      image(const char* filename,                           // image file source
+            const Functor ftor                              // function object to facilitate color depth conversion
+            [, R0 a0, .., Rn an]                            // arguments to pass through to `ftor' callable operator
+           ) throw (nicta::nicta_exception);
+
+          - Unfortunately, because most image formats do not encode color space information in file, the file will be loaded
+            in the color space specified by the user (one of the template parameters to the image class).  The number of
+            components corresponding to the image in file must match the number of components associated with the color
+            space of the image object on construction.
+
+
+
+    * explicit image(const ::IplImage* rhs) throw (nicta::nicta_exception);
+
+          - Instantiates an image object from a raw OpenCV image type.
+
+          - Pixel depths and components (count of image planes) must match in both argument, and template parameters
+            used for image object construction.
+
+
+
+    * image(nicta::quantity::width<unsigned int> width,
+            nicta::quantity::height<unsigned int> height
+           ) throw (nicta::nicta_exception);
+
+          - Instantiates an image object having some width and height.
+
+
+
+    * image(nicta::quantity::width<unsigned int> width,
+            nicta::quantity::height<unsigned int> height,
+            typename Depth::type value                      // initialize all pixel intensities to `value'
+           ) throw (nicta::nicta_exception);
+
+          - Instantiates an image object having some width and height, and initalizing all pixel intensities to `value'.
+
+
+
+    * image(nicta::quantity::width<unsigned int> width,
+            nicta::quantity::height<unsigned int> height,
+            typename Pixel<Depth>& pixel                    // initialize all pixel intensities to that of `pixel'
+           ) throw (nicta::nicta_exception);
+
+          - Instantiates an image object having some width and height, and initalizing all pixel intensities to that of `pixel'.
+
+
+
+    * explicit image(const nicta::vibe::image::image<Depth, Pixel>& rhs) throw ();
+
+          - Copy constructor
+
+
+
+    * template <template <typename> class Pixel_>
+      explicit image(const nicta::vibe::image::image<Depth, Pixel_>& rhs) throw (nicta::nicta_exception);
+
+          - Copy-like constructor that facilitates color-space conversion, from Pixel_ to Pixel.
+
+
+
+    * template < typename Depth_
+               , typename Functor
+              [, typename R0, .., typename Rn]
+               >
+      image(const nicta::vibe::image::image<Depth_, Pixel>& rhs,             // image file source
+            const Functor ftor,                                              // function object to facilitate color depth conversion
+            [R0 a0, .., Rn an]                                               // arguments to pass through to `ftor' callable operator
+           ) throw (nicta::nicta_exception);
+
+          - Instantiates an image object, facilitating depth conversion from Depth_ to Depth.
+
+          - Throws if ROI is set on `rhs'.
+
+
+
+    * template < typename Depth_
+               , typename <typename> class Pixel_
+               , typename Functor
+              [, typename R0, .., typename Rn]
+               >
+      image(const nicta::vibe::image::image<Depth_, Pixel>& rhs,             // image file source
+            const Functor ftor,                                              // function object to facilitate color depth conversion
+            [R0 a0, .., Rn an]                                               // arguments to pass through to `ftor' callable operator
+           ) throw (nicta::nicta_exception);
+
+          - Instantiates an image object, facilitating depth conversion from Depth_ to Depth, and color-space conversion from Pixel_ to Pixel.
+
+          - Throws if ROI is set on `rhs'.
+
+
+
+    * image(const nicta::vibe::image::image<Depth, nicta::vibe::image::gray_p>& channel1,
+            const nicta::vibe::image::image<Depth, nicta::vibe::image::gray_p>& channel2,
+            const nicta::vibe::image::image<Depth, nicta::vibe::image::gray_p>& channel3
+           ) throw (nicta::nicta_exception);
+
+          - Creates an image object from 3 independent gray-channels.
+
+
+
+    * image(const nicta::vibe::image::image<Depth, nicta::vibe::image::gray_p>& channel1,
+            const nicta::vibe::image::image<Depth, nicta::vibe::image::gray_p>& channel2,
+            const nicta::vibe::image::image<Depth, nicta::vibe::image::gray_p>& channel3,
+            const nicta::vibe::image::image<Depth, nicta::vibe::image::gray_p>& alpha_channel
+           ) throw (nicta::nicta_exception);
+
+          - Creates an image object from 3 independent gray-channels, and one alpha channel.
+
+
+
+[[ Utilities ]]
+
+
+    * boost::shared_ptr<typename nicta::vibe::image::splice_type<Depth, Pixel>::type>
+      splice() const throw ();
+
+          - Will splice an image into a a tuple of its constituent color channel components.
+
+          - Attempting to splice either a grayscale or bayer image will result in a compile-time error.
+
+
+
+    * image<Depth, Pixel>&
+      operator= (const nicta::vibe::image::image<Depth, Pixel>& rhs) throw ();
+
+          - Canonical assignment.
+
+
+
+    * template <template <typename _> class Pixel_>
+      image<Depth, Pixel>&
+      operator= (const nicta::vibe::image::image<Depth, Pixel_>& rhs) throw (nicta::nicta_exception);
+
+          - Assignment operator, that also facilitates color-space conversion from Pixel_ to Pixel.
+
+          - Throws if ROI is set on `rhs'.
+
+
+
+    *  bool
+       operator!= (const nicta::vibe::image::image<Depth, Pixel>& rhs) const throw ();
+
+          - Canonical comparitor !=
+
+          - Ignores ROI if set on `rhs'.
+
+
+
+    *  bool
+       operator== (const nicta::vibe::image::image<Depth, Pixel>& rhs) const throw ();
+
+          - Canonical comparitor ==
+
+          - Ignores ROI if set on `rhs'.
+
+
+
+    * Pixel<Depth>*
+      operator[](unsigned int idx);
+
+          - Accessor, set pixel intensity.
+
+          - Ignores ROI if set on `rhs'.
+
+
+
+    * const Pixel<Depth>* const
+      operator[](unsigned int idx) const;
+
+          - Accessor, get pixel intensity.
+
+          - Ignores ROI if set on `rhs'.
+
+
+
+    * typename Depth::type
+      operator()(unsigned int row,
+                 unsigned int column,
+                 unsigned int plane
+                ) throw (nicta::nicta_exception);
+
+          - Accessor, set pixel intensity.
+
+          - Bounds checked variant.
+
+          - Respects ROI.
+
+
+
+    * const typename Depth::type
+      operator()(unsigned int row,
+                 unsigned int column,
+                 unsigned int plane
+                ) const throw (nicta::nicta_exception);
+
+          - Accessor, get pixel intensity.
+
+          - Bounds checked variant.
+
+          - Respects ROI.
+
+
+
+    * boost::shared_ptr<image<Depth, Pixel> >
+      select(nicta::quantity::x_origin<unsigned int> x_origin,                              // top-left corner x-origin
+             nicta::quantity::y_origin<unsigned int> y_origin,                              // top-left corner y-origin
+             nicta::quantity::x_absolute_displacement<unsigned int> x_displacement,         // number of pixels to span in x-direction
+             nicta::quantity::y_absolute_displacement<unsigned int> y_displacement          // number of pixels to span in y-direction
+            ) const throw (nicta::nicta_exception);
+
+          - Crops to a particular image region.
+
+          - If either x_displacement or y_displacement is zero, all pixels in x, or y direction, to the right
+            of either x_origin, or y_origin (respectively) are spanned.
+
+
+
+    * template <nicta::vibe::image::FlipModel M>
+      image<Depth, Pixel> &
+      flip(const nicta::vibe::image::destination_model<nicta::vibe::image::inplace> model) throw (nicta::nicta_exception);
+
+          - Flip image along either x, y, or xy axis.
+
+          - Flip in-place.
+
+          - Throws if ROI is set.
+
+
+
+    * template <nicta::vibe::image::FlipModel M>
+      boost::shared_ptr<image<Depth, Pixel> >
+      flip(const nicta::vibe::image::destination_model<nicta::vibe::image::copy> model) const throw (nicta::nicta_exception);
+
+          - Flip image along either x, y, or xy axis.
+
+          - Flip as new image instance as output.
+
+          - Throws if ROI is set.
+
+
+
+    * template <nicta::vibe::image::InterpolationModel M>
+      void
+      scale(image<Depth, Pixel>& dest) const throw ();
+
+          - Interpolate this instance to size of `dest', and output to `dest'.
+
+
+
+    * template <nicta::vibe::image::InterpolationModel M>
+      boost::shared_ptr<image<Depth, Pixel> >
+      scale(nicta::quantity::width<unsigned int> width,
+            nicta::quantity::height<unsigned int> height
+           ) const throw ();
+
+          - Interpolate to user specified width and height, and output to a new image instance.
+
+
+
+    * nicta::vibe::image::OriginModel origin() const throw ();
+
+          - Returns the origin model, either:  nicta::vibe::image::BottomLeft  or  nicta::vibe::image::TopLeft.
+
+
+
+    * template <nicta::vibe::image::WriteModel M = nicta::vibe::image::asImage>
+      void
+      save_as(const char* filename) const throw (nicta::nicta_exception);
+
+          - Save image to `filename' as either a grayscale, or color image, or in the color space image happens to be (default).
+
+
+
+    * template <typename nicta::vibe::image::Native N = nicta::vibe::image::Handle>
+      typename nicta::vibe::image::native_type<N>::type &
+      native_handle() throw ();
+
+          - Return handle to underlying image type, either pointer to the image (default), or the image header.
+
+
+
+    * template <typename nicta::vibe::image::Native N = nicta::vibe::image::Handle>
+      const typename nicta::vibe::image::native_type<N>::type &
+      native_handle() const throw ();
+
+          - Return const-handle to underlying image type, either pointer to the image (default), or the image header.
+
+
+
+    * nicta::quantity::width<unsigned int>
+      width() const throw ();
+
+          - Returns the image width.
+
+
+
+    * nicta::quantity::height<unsigned int>
+      height() const throw ();
+
+          - Returns the image height.
+
+
+
+    * nicta::quantity::x_origin<unsigned int>
+      ROI_x_origin() const throw ();
+
+          - Returns the ROI x-origin.  If ROI not set, will return 0.
+
+
+
+    * nicta::quantity::y_origin<unsigned int>
+      ROI_y_origin() const throw ();
+
+          - Returns the ROI y-origin.  If ROI not set, will return 0.
+
+
+
+    * nicta::quantity::width<unsigned int>
+      ROI_width() const throw ();
+
+          - Returns the number of pixels spanned under ROI in the x-direction.  If ROI not set, will return the image width.
+
+
+
+    * nicta::quantity::height<unsigned int>
+      ROI_height() const throw ();
+
+          - Returns the number of pixels spanned under ROI in the y-direction.  If ROI not set, will return the image height.
+
+
+
+    * bool
+      have_ROI() const throw ();
+
+          - Returns `true' if ROI is set.
+
+
+
+    * void
+      clear_ROI() throw ();
+
+          - Clears the ROI if already set.
+
+
+
+    * void
+      set_ROI(nicta::quantity::x_origin<unsigned int> x_origin,               // top-left corner x-origin
+              nicta::quantity::y_origin<unsigned int> y_origin,               // top-right corner y-origin
+              nicta::quantity::width<unsigned int> width,                     // number of pixels to span in x-direction
+              nicta::quantity::height<unsigned int> height                    // number of pixels to span in y-direction
+             ) throw (nicta::nicta_exception);
+
+          - Sets the image ROI (Region Of Interest).
+
+          - If either width or height is zero, then span becomes 1 in the respective direction.
+
+
+
+    * ::CvRect
+      get_ROI() const throw ();
+
+          - Return the ROI as a ::CvRect structure, laid out like so:  [x-origin, y-origin, width, height].
+
+          - If ROI is not set, ::CvRect structure contains:  [0, 0, image_width, image_height].
+
+
+
+    * bool
+      have_COI() const throw ();
+
+          - Return `true' if COI (Channel Of Interest) is set.
+
+
+
+    * void
+      clear_COI() throw ();
+
+          - Clears the COI if already set.
+
+
+
+    * void
+      set_COI(typename Pixel<Depth>::channel::coi c) throw ();
+
+          - Set the COI channel.
+
+
+
+    * typename Pixel<Depth>::channel::coi
+      get_COI() const throw ();
+
+          - Return the COI.  If COI is not set, 0 is returned.
+
+
+
+    * ::CvSize
+      get_size() const throw ();
+
+          - Return extents of the image (width, height) as a ::CvSize structure, laid out like so:  [width, height].
+
+          - Respects ROI.
+
+
+
+[[ Conversions ]]
+
+
+    * template <template <typename> class Pixel_>
+      boost::shared_ptr<image<Depth, Pixel_> >
+      convert() const throw (nicta::nicta_exception);
+
+          - Converts image from one color space to another, from Pixel to Pixel_.
+
+          - Throws if ROI is set.
+
+
+
+    * template < typename Depth_
+               , typename Functor
+              [, typename R0, .., typename Rn]
+               >
+      boost::shared_ptr<image<Depth_, Pixel> >
+      convert([R0 a0, .., Rn an]) const;                                // arguments to pass through to `Functor()' callable operator
+
+          - Converts image from one color depth to another, from Depth to Depth_.
+
+
+
+    * template < typename Depth_
+               , template <typename> class Pixel_
+               , typename Functor
+              [, typename R0, .., typename Rn]
+               >
+      boost::shared_ptr<image<Depth_, Pixel> >
+      convert([R0 a0, .., Rn an]) const;                                // arguments to pass through to `Functor()' callable operator
+
+          - Converts image from one color depth to another, from Depth to Depth_; and one pixel depth to another, from Pixel to Pixel_.
+
+          - Throws if ROI is set.
+
+
+
+[[ Show Methods for Display ]]
+
+There are a number of methods to display images to screen.  We shall describe the
+generalized forms, and leave it to the user to read the API for alternatives - which
+should hearafter be self-explanatory.
+
+
+    * bool
+      show(nicta::vibe::image::WindowModel m = nicta::vibe::image::autosize) const throw ();
+
+          - Will queue image for display, until either a timed_show on another image is made, or a
+            call to wait_key is invoked.
+
+          - The name for the window and title-bar will be the address of the image.
+
+          - Return `true' if window alread exists.
+
+
+
+    * bool
+      show(const char* id,                                                                          // name for window and title-bar
+           nicta::quantity::x_absolute_displacement<unsigned int> x_pos,                            // x-position in screen-coordinates of where to place window
+           nicta::quantity::y_absolute_displacement<unsigned int> y_pos,                            // y-position in screen-coordinates of where to place window
+           nicta::quantity::width<unsigned int> width,                                              // the width of the image window
+           nicta::quantity::height<unsigned int> height,                                            // the height of the image window
+           nicta::vibe::image::WindowModel m = nicta::vibe::image::autosize                         // option to make the window resizeable or not
+          ) const throw ();
+
+          - Will queue image for display, until either a timed_show on another image is made, or a
+            call to wait_key is invoked.
+
+          - If `id' is `0', the name for the window and title-bar will be the address of the image.
+
+          - Return `true' if window alread exists.
+
+
+
+    * bool
+      timed_show(boost::posix_time::time_duration td,                                               // time duration to keep window alive
+                 nicta::vibe::image::WindowModel m = nicta::vibe::image::autosize                   // option to make the window resizeable or not
+                ) const throw ();
+
+          - Will immediately display an image for time duration of `td' length.  If `td' is `0', will
+            display image indefinitely on screen.
+
+          - The name for the window and title-bar will be the address of the image.
+
+          - Return `true' if window alread exists.
+
+
+
+    * bool
+      timed_show(const char* id,                                                                    // name for window and title-bar
+                 boost::posix_time::time_duration td,                                               // time duration to keep window alive
+                 nicta::quantity::x_absolute_displacement<unsigned int> x_pos,                      // x-position in screen-coordinates of where to place window
+                 nicta::quantity::y_absolute_displacement<unsigned int> y_pos,                      // y-position in screen-coordinates of where to place window
+                 nicta::quantity::width<unsigned int> width,                                        // the width of the image window
+                 nicta::quantity::height<unsigned int> height,                                      // the height of the image window
+                 nicta::vibe::image::WindowModel m = nicta::vibe::image::autosize                   // option to make the window resizeable or not
+                ) const throw ();
+
+          - Will immediately display an image for time duration of `td' length.  If `td' is `0', will
+            display image indefinitely on screen.
+
+          - If `id' is `0', the name for the window and title-bar will be the address of the image.
+
+          - Return `true' if window alread exists.
+
+
+
+[[ Window Management:  Free-Functions ]]
+
+
+    * void*
+      window_handle(const char* id) throw ();
+
+          - Returns handle for window aliased by `id'.  Returns `0' if window does not exist.
+
+
+
+    * void
+      move_window(const char* id,
+                  nicta::quantity::x_absolute_displacement<unsigned int> x_pos,
+                  nicta::quantity::y_absolute_displacement<unsigned int> y_pos
+                 ) throw ();
+
+          - Moves window aliased by name `id' to screen coordinates [x_pos, y_pos].
+
+
+
+    * void
+      resize_window(const char* id,
+                    nicta::quantity::width<unsigned int> pix_width,
+                    nicta::quantity::height<unsigned int> pix_height
+                   ) throw ();
+
+          - Resizes window aliased by name `id' to:  pix_width X pix_height.
+
+
+
+    * void
+      destroy_window(const char* id) throw ();
+
+          - Destroy window aliased by name `id'.
+
+
+
+    * void
+      destroy_all_windows() throw ();
+
+          - Destroy all windows.
+
+
+
+    * int wait_key(boost::posix_time::time_duration td) throw ();                                   // time duration to keep window alive
+
+          - Will display all queued images for time duration of `td' length.  If `td' is `0', will
+            display image indefinitely on screen.
+
+          - Returns key-code.  Returns nullary key-code if time waited is greater than `td' length.
+
+
+
+    * int wait_key(boost::posix_time::time_duration td,                                             // time duration to keep window alive
+                   unsigned short int nth                                                           // waits for the nth key-press
+                  ) throw ();
+
+          - Wait for `nth' keypress for *upto* time duration `td' length on **each** key.
+
+          - Returns key-code.  Returns nullary key-code if time waited is greater than `td' length.
+
+
+
+[[ Assign Friend Functions ]]
+
+
+    * template < typename Depth_
+               , template <typename> class Pixel_
+               >
+      friend
+      nicta::vibe::image::image<Depth_, Pixel_>&
+      assign(nicta::vibe::image::image<Depth_, Pixel_>& lhs,
+             const nicta::vibe::image::image<Depth_, Pixel_>& rhs
+            ) throw ();
+
+          - Canonical assignment.
+
+          - `return lhs.nicta::vibe::image::image<Depth_, Pixel_>::operator= (rhs);'
+
+
+
+    * template < typename Depth_
+               , template <typename> class Pixel_
+               , template <typename> class Pixel1
+               >
+      friend
+      nicta::vibe::image::image<Depth_, Pixel_>&
+      assign(nicta::vibe::image::image<Depth_, Pixel_>& lhs,
+             const nicta::vibe::image::image<Depth_, Pixel1>& rhs
+            ) throw (nicta::nicta_exception);
+
+          - Assignment operator, that also facilitates color-space conversion from Pixel1 to Pixel_.
+
+          - `return lhs.nicta::vibe::image::image<Depth_, Pixel_>::operator= (rhs);'
+
+          - Throws if ROI is set on `rhs'.
+
+
+
+    * template < typename Functor
+               , typename Depth_
+               , template <typename> class Pixel_
+               , typename Depth1
+              [typename R0, .., typename Rn]
+               >
+      friend
+      nicta::vibe::image::image<Depth_, Pixel_>&
+      assign(nicta::vibe::image::image<Depth_, Pixel_>& lhs,
+             const nicta::vibe::image::image<Depth1, Pixel_>& rhs
+             [R0 a0, .., Rn an]                                                                     // arguments to pass through to `Functor()' callable operator
+            );
+
+          - Assigns `rhs' to `lhs', and performs pixel depth conversion from Depth1 to Depth_.
+
+
+
+    * template < typename Functor
+               , typename Depth_
+               , template <typename> class Pixel_
+               , typename Depth1
+               , template <typename> class Pixel1
+              [typename R0, .., typename Rn]
+               >
+      friend
+      nicta::vibe::image::image<Depth_, Pixel_>&
+      assign(nicta::vibe::image::image<Depth_, Pixel_>& lhs,
+             const nicta::vibe::image::image<Depth1, Pixel1>& rhs,
+             [R0 a0, .., Rn an]                                                                     // arguments to pass through to `Functor()' callable operator
+            ) throw (nicta::nicta_exception);
+
+          - Assigns `rhs' to `lhs', and performs pixel depth conversion from Depth1 to Depth_, and
+            color space conversion from Pixel1 to Pixel_.
+
+          - Throws if ROI is set on `rhs'.
+
+
+
+[[ as-Representation Friend Functions ]]
+
+
+    * template < typename Depth_
+               , template <typename> class Pixel_
+               >
+      friend
+      boost::shared_ptr< nicta::vibe::image::image<Depth_, Pixel_> >
+      as_image(const nicta::ocv::matrix::matrix< typename Depth_::type
+                                               , 2
+                                               , Pixel_<Depth_>::components
+                                               , 2
+                                               >& matrix) throw (std::domain_error);
+
+          - Converts a 2-dimensional matrix to an image having Pixel_<Depth_>::components channels.
+
+
+
+    * template < typename T
+               , template <typename> class Pixel_
+               >
+      friend
+      boost::shared_ptr< nicta::ocv::matrix::matrix< T
+                                                   , 2
+                                                   , Pixel_<typename nicta::vibe::image::depth<T>::type>::components
+                                                   , 2
+                                                   >
+                       >
+      as_matrix(const nicta::vibe::image::image<typename nicta::vibe::image::depth<T>::type, Pixel_>& image) throw ();
+
+          - Converts an image to a 2-dimensional matrix.
+
+
+
+
+-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+IMAGE GRAFFITI:
+-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+
+
+[[ Scribbling ]]
+
+Users can "write" text across an image by instantiating an instance of the
+class `scribe' - by means of which basic type-setting properties can be set,
+along with color, and coordinate placement on the image.
+
+
+Forward declaration for class scribe follows:
+
+    namespace nicta {
+    namespace vibe {
+    namespace image {
+    namespace display {
+
+        class scribe;
+
+    } } } } // namespace nicta::vibe::image::display
+
+
+
+[[ Constructor ]]
+
+    * explicit scribe(nicta::vibe::image::display::HersheyFont font_type,                              // the font type
+                      double font_height    = 0.5,                                                     // font height
+                      double font_width     = 0.5,                                                     // font width
+                      unsigned int boldness = 1,                                                       // relative font "boldness"
+                      nicta::vibe::image::display::LineType ln_type =                                  // line-style:  { Bresenham_4, Bresenham_8, AntiAliased }
+                             nicta::vibe::image::display::AntiAliased
+                     ) throw ();
+
+          - Constructor to initialize the font.
+
+
+
+[[ Callable Operator ]]
+
+    * template < typename Depth
+               , template <typename> class Pixel
+               >
+      void
+      operator()(nicta::vibe::image::image<Depth, Pixel>& image,                                         // image upon which to write text over
+                 const char* text,                                                                       // the text to write
+                 nicta::quantity::x_absolute_displacement<unsigned int> text_offset_x =                  // x-offset of text relative to bottom-left-corner of image
+                        nicta::quantity::x_absolute_displacement<unsigned int> (10),
+                 nicta::quantity::y_absolute_displacement<unsigned int> text_offset_y =                  // y-offset of text relative to bottom-left-corner of image
+                        nicta::quantity::y_absolute_displacement<unsigned int> (10),
+                 ::CvScalar color = CV_RGB(0, 255, 0)                                                    // text color (default is green)
+                ) const throw ();
+
+          - Write text on image.
+
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+

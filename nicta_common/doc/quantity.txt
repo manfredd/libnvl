@@ -1,0 +1,139 @@
+/////////////////////////////////////////////////////////////////////////////////////////////
+// Copyright (c) 2010 Manfred Doudar, NICTA Ltd.
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+/////////////////////////////////////////////////////////////////////////////////////////////
+
+
+NICTA QUANTITY:  a primary base class from which to spawn a variety of others for the the
+purpose of providing type-checked/ type-constrained named parameters in function calls of
+fundamental types; whence aiding the readability and robustness of code.
+
+Quantities can be compared, and written to output streams.  New quantaties can easily be
+added by publically inheriting from the base class `quantity_base<T>':
+
+
+    namesapce nicta {
+    namespace quantity {
+
+        template <typename T>
+        class quantity_base;
+
+    } } // namespace nicta::quantity
+
+
+
+-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+THE API:
+-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+
+
+As of writing there are 49 quantities, each of which takes context from the API or
+translation units in which they are used.  We name the these quantities below:
+
+
+    * x_origin
+
+    * y_origin
+
+    * x_coordinate
+
+    * y_coordinate
+
+    * x_center
+
+    * y_center
+
+    * length
+
+    * width
+
+    * height
+
+    * pixel_width
+
+    * pixel_height
+
+    * x_pixel_coordinate
+
+    * y_pixel_coordinate
+
+    * pixel_component
+
+    * pixel_intensity
+
+    * x_relative_displacement
+
+    * y_relative_displacement
+
+    * x_absolute_displacement
+
+    * y_absolute_displacement
+
+    * count
+
+    * period
+
+    * step
+
+    * increment
+
+    * ratio
+
+    * fraction
+
+    * scale_factor
+
+    * x_order
+
+    * y_order
+
+    * order
+
+    * gradient
+
+    * exponent
+
+    * additive_constant
+
+    * lower_bound
+
+    * upper_bound
+
+    * lower_threshold
+
+    * upper_threshold
+
+    * threshold
+
+    * frame_rate_per_second
+
+    * frame_buffer_capacity
+
+    * signed_frame_buffer_capacity
+
+    * frames
+
+    * aperature_size
+
+    * parameterization
+
+    * bandwidth
+
+    * std_deviations
+
+    * gamma_correction
+
+    * gain_control
+
+    * kernel_size
+
+    * display_source
+
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+

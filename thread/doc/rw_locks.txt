@@ -1,0 +1,37 @@
+/////////////////////////////////////////////////////////////////////////////////////////////
+// Copyright (c) 2010 Manfred Doudar, NICTA Ltd.
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+/////////////////////////////////////////////////////////////////////////////////////////////
+
+
+THREAD RW_LOCK TYPEDEFS:  convenience metafunctions that delineate read & write locks
+
+
+Both read & write locks coordinate with a condition variable managing a
+boost::shared_mutex.
+
+In the case of the read-lock, a boost::shared_lock canonically manages the mutex,
+and a boost::unique_lock in the case of a write_lock.  Definitions below:
+
+
+    namespace nicta {
+    namespace thread {
+
+        struct read_lock
+        {
+            typedef nicta::thread::rw_condition_wait<boost::shared_mutex>::result_type<boost::shared_lock>::type type;
+        };
+
+        struct write_lock
+        {
+            typedef nicta::thread::rw_condition_wait<boost::shared_mutex>::result_type<boost::unique_lock>::type type;
+        };
+
+    } }  // namespace nicta::thread
+
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

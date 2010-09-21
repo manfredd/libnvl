@@ -1,0 +1,60 @@
+/////////////////////////////////////////////////////////////////////////////////////////////
+// Copyright (c) 2010 Manfred Doudar, NICTA Ltd.
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+/////////////////////////////////////////////////////////////////////////////////////////////
+
+
+NICTA STRINGUTIL:  miscellaneous string-utility functions.
+
+
+WHAT IS HERE:  4 string-utility functions associated predominantly concerned
+with conversions to and from numeric values.  The functions presented here all
+live in namespace nicta::stringutil.
+
+
+
+
+-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+THE API:
+-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+
+
+[[ 4 Free Functions ]]
+
+
+    * template <typename T>
+      std::string
+      atomic_to_string(const T& t) throw (nicta_exception);
+
+          - Return the numeric value `t' as a string.
+
+
+
+    * template <typename T>
+      T
+      string_to_atomic(const std::string& s) throw (nicta_exception);
+
+          - Attempt to convert the string `s' to a numeric value of type T.
+
+
+
+    * char*
+      ccc(const std::string& s) throw ();
+
+          - Strip string `s' of constness, and return as a char*.
+
+
+
+    * bool
+      is_numeric(const std::string& s) throw ();
+
+          - Return `true' if the string `s' forms a valid numeric value.
+
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+

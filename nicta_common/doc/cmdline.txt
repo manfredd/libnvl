@@ -1,0 +1,1066 @@
+/////////////////////////////////////////////////////////////////////////////////////////////
+// Copyright (c) 2010 Manfred Doudar, NICTA Ltd.
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+/////////////////////////////////////////////////////////////////////////////////////////////
+
+
+NICTA CMDLINE:  a library for the parsing of POSIX-compliant **long-option** command-line
+arguments.  The unit test and API are additional tools to better understand this library.
+
+
+Parsing a command-line is constituted of 3 primary steps with this library:
+
+1.  initialization, and optionally command-line documentation
+2.  parameter/ option registration (aka parsing)
+3.  parameter/ option value access
+
+
+
+NOTES:
+
+*  In the absence of parameter packs (variadics), we use the Boost.Preprocessor to
+   accommodate variable length command-line "XOR-lists" - the means to specify
+   that one of a series of mutually exclusive options are expected.  Consequently 
+   there is a bound on the allowable count of such option-lists, dictated by the
+   Boost.PP library.  The cmdline library default limits all such lists to 11, but
+   can be overriden by users, with a `-DNICTA_MAX_ARITY=N' define on compilation,
+   where N is the arity.
+
+
+*  It should be noted that the option "--help", when issued at the command-line
+   is automatically recognized as an option to dump the command-line help to
+   the standard error stream and terminate.
+
+
+*  In the event of a parse error, the command-line help is dumped to the standard
+   error stream, and the program terminates.
+
+
+*  Short option variants of command-line areguments are **NOT** supported!
+
+
+
+TODO:
+
+*  Re-write the code for generating man-page like formatting of command-line documentation;
+   it can be done infinitely better, but was rushed in this partiuclar instance:  [having
+   written csv.h and cmdline.h in less than 2 weeks, all the while, I was meant to be working
+   toward a deadline for something else altogether... however, these libraries were too good
+   to let go - and I couldn't afford to lose the idea once I got it ..so I rushed through the
+   man-page like formatting here].
+
+
+
+
+[[ Preliminaries 1a. ]]
+
+Command Line initialization and parameter registration (parsing), is facilitated by the
+class `opt_map'.
+
+Access to parameters is made through the `get' method on the class `opt_map', and in 
+the case of flags, through the method `have_flag'.  Querying if a parameter name/ value
+pair exists can be made by a call to the method `have_key', where the parameter name is
+queries if it exists.
+
+    namespace nicta {
+    namespace util {
+    namespace cmdline {
+
+        class opt_map;
+
+    } } } // namespace nicta::util::cmdline
+
+
+
+[[ Preliminaries 1b. ]]
+
+An `opt_map' manages any of 23 option value types; these are the 11 possible types available
+in a csv parse-context (see csv.txt documentation), and a further 11 for list variants of the
+same, and a further one to accomodate flag-options, making 23 in all; we list these below:
+
+
+  The 11 fundamental types:
+  -------------------------
+                                                                                                                        UNDERLYING TYPE
+
+  - boolean:             true, false, T, F, 1, 0      [case insensitive]                                                 bool
+
+  - binary:              +-  0-1.0-1p0-9<b>           [trailing 'b' is optional]                                         long double
+
+  - octal:               +-  0-7.0-7p0-9<o>           [trailing 'o' is mandatory]                                        long double
+                         +-  <0>0-7.0-7p0-9           [leading '0' is mandatory]
+
+  - hexadecimal:         +-  0-9A-F.0-9A-Fp0-9<h>     [trailing 'h' is mandatory]                                        long double
+                         +-  <0x>0-9A-F.0-9A-Fp0-9    [leading '0x' is mandatory]
+
+  - signed_int:          +-  0-9                                                                                         long long int
+
+  - unsigned_int:        +   0-9                                                                                         unsigned long long int
+
+  - numeric:             +-. 0-9                      [includes decimal point]                                           long double
+
+  - alpha:               a-zA-Z                                                                                          std::string
+
+  - alphanum:            a-zA-Z +- 0-9                [does not include decmimal point]                                  std::string
+
+  - usrdef:              user-specified printable characters, modulo user-specified delimiters                           std::string
+
+  - anystr:              all printable characters, modulo a set of literals, and modulo user-specified delimiters        std::string
+
+
+
+  The 11 list types:
+  ------------------
+                                                                                                                        UNDERLYING TYPE
+
+  - boolean_list:        a comma-separated list variant of type `boolean'                                                Container<bool>
+
+  - binary_list:         a comma-separated list variant of type `binary'                                                 Container<long double>
+
+  - octal_list:          a comma-separated list variant of type `octal'                                                  Container<long double>
+
+  - hexadecimal_list:    a comma-separated list variant of type `hexadecimal'                                            Container<long double>
+
+  - signed_int_list:     a comma-separated list variant of type `signed_int'                                             Container<long long int>
+
+  - unsigned_int_list:   a comma-separated list variant of type `unsigned_int'                                           Container<unsigned long long int>
+
+  - numeric_list:        a comma-separated list variant of type `numeric'                                                Container<long double>
+
+  - alpha_list:          a comma-separated list variant of type `alpha'                                                  Container<std::string>
+
+  - alphanum_list:       a comma-separated list variant of type `alphanum'                                               Container<std::string>
+
+  - usrdef_list:         a comma-separated list variant of type `usrdef'                                                 Container<std::string>
+
+  - anystr_list:         a comma-separated list variant of type `anystr'                                                 Container<std::string>
+
+
+
+ The type `flag':
+ ----------------
+
+
+  - flag:                the presence of an option without a value is a `flag', it has no associated type                Not Applicable
+
+
+
+The 23 option types live in namespace nicta::util::cmdline.
+
+Parsing is commonly achieved through the class `opt' and its alias `opt_':
+
+    namespace nicta {
+    namespace util {
+    namespace cmdline {
+
+        template < typename T
+                 , typename U
+                 >
+        class opt;
+
+
+        template <typename T>
+        class opt_;
+
+    } } } // namespace nicta::util::cmdline
+
+
+Parsing of XOR-lists is acheived by means of the class `opt_xorN', where `N' is
+the length of the XOR-list to parse and limited by the define NICTA_MAX_ARITY;
+
+    namespace nicta {
+    namespace util {
+    namespace cmdline {
+
+        template < typename T1
+                [, typename T2, ..., typename TN]
+                 , typename U
+                 >
+        class opt_xorN;                               // range of `N' = [1, NICTA_MAX_ARITY]
+
+    } } } // namespace nicta::util::cmdline
+
+
+
+
+-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+USAGE:
+-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+
+
+[[ Initialization ]]
+
+The constructor below creates a command-line options-map, all the while it should
+be noted that repeat keys on the command-line will yield and exception (for obvious
+reasons, not so for flags):
+
+    * opt_map(int argc,                                              // command-line argument count
+              char** argv,                                           // command-line argument values
+              const std::string& usage                               // a basic synopsis string
+             [, std::map<std::string, std::string>& manpage]         // detailed documentaion map
+             ) throw (nicta::nicta_exception);
+
+
+          - Consider the manpage for `cat', then the `usage' string would be the
+            SYNOPSIS therein, with the distinction that we omit the program name:
+
+                std::string usage("[OPTION] [FILE]...");
+
+          - Using the manpage `cat' again, we can optionally add more detailed
+            documentation, that will result in manpage-like formatting in the
+            case of program error, by populating a map of key-value pairs.
+
+            Populating such a map is easy, with manpage headings used as map-keys.
+            Options are given per heading, as a single formatted string, adhering
+            to a few formatting rules:
+
+                = `\t'   serves to indent lines
+
+                = `\b'   used for line breaks
+
+                = `\n\n' results in a new paragraph
+
+
+                = any key with a double-hyphen "--" (aka long-option) will be 
+                  considered a parameter documented under the OPTION heading
+
+                = for the most part, documentation will be formatted to 80 character
+                  width (there are exceptions to this)
+
+                = you should **not** define the heading "OPTIONS"
+
+                = you can have any headings you like, but there are some that are
+                  recognized; any that are not, will appear *after* those headings
+                  recognized internally, and output in lexiographic order
+
+                = recognized headings, and the order of their output is as follows:
+
+                      NAME ; SYNOPSIS ; DESCRIPTION ; DEFAULTS ; OPTIONS ; PROMPTS ;
+                      SECURITY ; ENVIRONMENT ; ENVIRONMENT VARIABLES ; FILES ;
+                      MISCELLANEOUS ; MISCELLANY ; RETURN VALUE ; ERRORS ; WARNINGS ;
+                      EXAMPLES ; NOTES ; BUGS ; AUTHOR ; REPORTING BUGS ; COPYRIGHT ;
+                      SEE ALSO ; HISTORY
+
+
+          - You should look at the example presented in the unit-test `cmdline_test.cc'
+            in the test directory of this library for example of how to document your
+            command-lines (see function `CommandLineHelp').  The example therein 
+            presents an example of how to document the unix `cat' manpage.  Below is
+            the output of that unit-test (you will note we adapted the original to
+            subject to the long-option [twin-hypen] requirement):
+
+
+
+                NAME
+                       cat - concatenate files and print on the standard ouput
+
+                SYNOPSIS
+                       cat  [OPTION] [FILE]...
+
+                DESCRIPTION
+                        Concatenate FILE(s), or standard output, to standard output.
+
+                OPTIONS
+                       --e
+                               equivalent to --show-nonprinting --show-ends
+
+                       --help
+                               display this help and exit
+
+                       --number
+                               number all output lines
+
+                       --number-non-blank
+                               number nonblank output lines
+
+                       --show-all
+                               equivalent to --show-nonprinting --show-ends --show-tabs
+
+                       --show-ends
+                               display $ at end of each line
+
+                       --show-nonprinting
+                               use ^ and M- notation, except for LFD and TAB
+
+                       --show-tabs
+                               display TAB charachters as ^I
+
+                       --squeeze-blank
+                               never more than one single blank line
+
+                       --t
+                               equivalent to --show-nonprinting --show-tabs
+
+                       --u
+                               (ignored)
+
+                       --version
+                               output version information and exit
+
+                MISCELLANEOUS
+                        With no FILE, or when FILE is -, read standard input.
+
+                EXAMPLES
+                        cat f - g
+                               Output f's contents, then standard input, then g's contents.
+
+                        cat
+                               Copy standard input to standard output.
+
+                AUTHOR
+                        Written by Torbjorn Granlund and Richard M. Stallman.
+
+                REPORTING BUGS
+                        Report bugs to <bug-coreutils@gnu.org>.
+
+                COPYRIGHT
+                        Copyright (C) 2006 Free Software Foundation, Inc.
+                        This is free software. You may redistribute copies of it under the terms
+                        of the GNU General Public License <http://www.gnu.org/licenses/gpl.html>.
+                        There is NO WARRANTY, to the extent permitted by law.
+
+                SEE ALSO
+                        The full documentation for cat is maintained as a Texinfo manual. If the
+                        info and cat programs are properly installed at your site, the command
+
+                               info cat
+
+                        should give you access to the complete manual.
+
+
+
+[[ Registration / Parsing ]]
+
+Command-line options are appropriately parsed with a call to a static `parse' 
+member-function of class `opt', or its derivatives; taking anywhere from 2 to 6
+arguments depending on context.
+
+Command-line options can be any of the 23 above listed types, and can be designated
+as either `optional' or `required'.  Note, it makes no sense for flags to be required,
+as by nature they are always optional - you can however enforce the presence of a flag
+among a list of mutally exclusive options.
+
+In the absence of an expected parameter, the user can force a default - though the
+default can be of any of the other remaining 22 types if you so choose (flags remain
+optional).
+
+Finally, while all flags are registered automatically, you **MUST** register flag
+options if they have default types associated with them; otherwise defaults will
+never be registered in the event of a non-extant flag option.
+
+
+
+# Basic Usage:
+--------------
+
+Don't get too bothered about issues of overloading ambiguity below, for concision, 
+the static parse members are written as members of the one class opt in the
+documentation only, however, they are really members of independent classes, 
+distinguished from one another by enable_if templates.
+
+
+For convenience, we now categorize our types as follows:
+
+type-1:  flag, boolean, binary, octal, hexadecimal, signed_int, unsigned_int, numeric, alpha, alphanum
+
+type-2:  boolean_list, binary_list, octal_list, hexadecimal_list, signed_int_list, unsigned_int_list, numeric_list, alpha_list, alphanum_list
+
+type-3:  usrdef
+
+type-4:  usrdef_list
+
+type-5:  anystr
+
+type-6:  anystr_list
+
+type-7:  optional, required
+
+
+
+The static `parse' member functions below:
+
+
+    namespace nicta {
+    namespace util {
+    namespace cmdline {
+
+        template < typename T            // see NOTES below..
+                 , typename U            // see NOTES below..
+                 >
+        struct opt
+        {
+            static
+            ContainerModel
+            parse(opt_map& m,
+                  const char* arg                                  // is T=type-1 ; [U=type-7]
+                 ) throw (nicta_exception);
+
+
+
+            static
+            ContainerModel
+            parse(opt_map& m,
+                  const char* arg,                                 // is T=type-1
+                  const char* fiducial = 0                         // is U=type-1
+                 ) throw (nicta_exception);
+
+
+
+            static
+            ContainerModel
+            parse(opt_map& m,
+                  const char* arg,                                 // is T={type-3, type-5} ; [U=type-7]
+                  const char* literals = X                         // X={"0-9a-zA-Z.*/_+-", 0} when T={type-3, type-5} respectively
+                 ) throw (nicta_exception);
+
+                - when T=type-5, then type-5 characters consist of all printable characters modulo `literals';
+                  by default, `literals' is the empty-set in this context
+
+
+
+            static
+            ContainerModel
+            parse(opt_map& m,
+                  const char* arg,                                 // is T=type-2
+                  const char* delimiters = ",;:"                   // the possible separators for `arg' tokens
+                 ) throw (nicta_exception);
+
+
+
+            static
+            ContainerModel
+            parse(opt_map& m,
+                  const char* arg,                                 // is T={type-1, type-3, type-5}
+                  const char* fiducial,                            // is U={type-1, type-3, type-5}
+                  const char* literals = X                         // X={"0-9a-zA-Z.*/_+-", 0} when T={type-3, type-5} respectively
+                 ) throw (nicta_exception);
+
+                - {type-3, type-5} are mutally exclusive types for T and U;
+                  that is to say, T cannot be userdef, when U is anystr and vice-versa
+
+                - T, U can not both be of type-1 here
+
+                - `literals' is the permissible character set for either T or U, when T or U =type-3
+
+                - when T or U =type-5, then type-5 characters consist of all printable characters modulo `literals';
+                  by default, `literals' is the empty-set in this context
+
+
+
+            static
+            ContainerModel
+            parse(opt_map& m,
+                  const char* arg,                                 // is T={type-1, type-2}
+                  const char* fiducial,                            // is U={type-1, type-2}
+                  const char* delimiters = ",;""                   // the possible separators for `arg' or `fiducial' tokens
+                 ) throw (nicta_exception);
+
+                - T, U can not both be of type-1 here
+
+
+
+            static
+            ContainerModel
+            parse(opt_map& m,
+                  const char* arg,                                 // is T={type-1, type-2, type-3, type-4, type-5, type-6}
+                  const char* fiducial,                            // is U={type-1, type-2, type-3, type-4, type-5, type-6}
+                  const char* delimiters = ",;:",                  // the possible separators for `arg' or `fiducial' tokens
+                  const char* literals = X                         // X={"0-9a-zA-Z.*/_+-" ; 0} when T={(type-3 or type-4) ; (type-5 or type-6)} respectively
+                 ) throw (nicta_exception);
+
+                - when T or U ={type-5, type-6}, then {type-5, type-6} characters consist of all printable
+                  characters modulo `literals'; by default, `literals' is the empty-set in this context
+
+                - when T=type-1, then U={type-4, type-6}
+
+                - when T=type-2, then U={type-3, type-5}
+
+                - when T=type-3, then U={type-1, type-2, type-4}
+
+                - when T=type-4, then U={type-1, type-2, type-4, type-5}
+
+                - when T=type-5, then U={type-1, type-2, type-3, type-4, type-5}
+
+                - when T=type-6, then U={type-1, type-2, type-3, type-5, type-6}
+
+                - no other pairings of T, U are permitted
+
+
+
+            static
+            ContainerModel
+            parse(opt_map& m,
+                  const char* arg,                                 // is T={type-3, type-5}
+                  const char* fiducial,                            // is U={type-3, type-5}
+                  const char* usr_literals = "0-9a-zA-Z.*/_+-",    // the allowed literals for type-3 types
+                  const char* any_literals = 0                     // the exclusion set for type-5 characters (defaults to allow all printable characters)
+                 ) throw (nicta_exception);
+
+                - when T or U =type-5, then type-5 characters consist of all printable characters modulo `literals';
+                  by default, `literals' is the empty-set in this context
+
+                - T, U can not both be of the same type
+
+
+
+            static
+            ContainerModel
+            parse(opt_map& m,
+                  const char* arg,                                 // is T={type-3, type-4, type-5, type-6}
+                  const char* fiducial,                            // is U={type-3, type-4, type-5, type-6}
+                  const char* delimiters = ",;:",                  // the possible separators for `arg' or `fiducial' tokens
+                  const char* usr_literals = "0-9a-zA-Z.*/_+-",    // the allowed literals for type-3 or type-4 types
+                  const char* any_literals = 0                     // the exclusion set for type-5 or type-6 characters (defaults to allow all printable characters)
+                 ) throw (nicta_exception);
+
+                - when T or U ={type-5, type-6}, then {type-5, type-6} characters consist of all printable
+                  characters modulo `literals'; by default, `literals' is the empty-set in this context
+
+                - when either T or U is of type-3, the other must be of type-6
+
+                - when either T or U is of type-4, the other must be one of {type-5, type-6}
+
+                - no other pairings of T, U are permitted
+        }
+
+    } } } // namespace nicta::util::cmdline
+
+
+
+NOTES:
+
+* `arg' is the name of the option parameter or flag, bearing template type `T'
+
+*  `fiducial' is the default value that `arg' takes on in the event `arg' does 
+   not satisfy template type `T'.  The type of `fiducial' is indicated by the
+   template parameter `U'.
+
+*  In the absence of `fiducial', template parameter `U' imposes a requirement
+   on the option parameter `arg', of either being `optional' or `required'.
+
+* Template parameter `U' is either:
+
+    a)  nicta::util::cmdline::required              // an option of type `T' is expected
+
+    b)  nicta::util::cmdline::optional              // an option of type `T' is optional
+
+    c)  one of the 23 listed possible types         // indicates the "default" or substitute type expected in the
+                                                    // absence of type `T' being satisfied by `arg' (Note: U == T is a possibility)
+
+* {`literals', `usr_literals', `any_literals'} can accommodate ranges like:  "a-z"
+  to mean all letters `a' through to `z'
+
+* The return value of a call to `parse' is `ContainerModel':  an enumeration-value that
+  indicates the type of the option that was parsed; there are 24 such values - listed
+  below:
+
+
+namespace nicta {
+namespace util {
+namespace cmdline {
+
+    enum ContainerModel
+    {
+        absent_            =  0 ,        // returned when we tried to parse an optional parameter on the command-line that was not present there
+        flag_              =  1 ,        // option parsed was a flag
+        boolean_           =  2 ,        // option parsed was a bool                         "true" | "false" | "T" | "F" | "1" | "0"           * [case-insensitive]
+        binary_            =  3 ,        // option parsed was a binary number                +-01.0-1p+-0-9<b>
+        octal_             =  4 ,        // option parsed was an octal number                +-<0>0-7.0-7p+-0-9<o>
+        hexadecimal_       =  5 ,        // option parsed was a hexadecimal number           +-<0x>0-9a-fA-F.0-9a-fA-Fp+-0-9<h>
+        signed_int_        =  6 ,        // option parsed was a signed integer               +-0123456789
+        unsigned_int_      =  7 ,        // option parsed was an unsigned integer            +0123456789
+        numeric_           =  8 ,        // option parsed was a floating point number        +-.0123456789                                      * [incl decmial pt]
+        alpha_             =  9 ,        // option parsed was an alphabetical string         a-zA-Z
+        alphanum_          = 10 ,        // option parsed was an alpha-numeric string        a-zA-Z+-0123456789                                 * [does NOT incl decimal pt]
+        usrdef_            = 11 ,        // user-specified printable characters
+        anystr_            = 12 ,        // all printable characters, modulo a literal-set
+        boolean_list_      = 13 ,        // option parsed was a boolean list
+        binary_list_       = 14 ,        // option parsed was a binary integer list
+        octal_list_        = 15 ,        // option parsed was an octal integer list
+        hexadecimal_list_  = 16 ,        // option parsed was a hexadecimal integer list
+        signed_int_list_   = 17 ,        // option parsed was a signed integer list
+        unsigned_int_list_ = 18 ,        // option parsed was an unsigned integer list
+        numeric_list_      = 19 ,        // option parsed was a floating point numeric list
+        alpha_list_        = 20 ,        // option parsed was an alphabetic (string) list
+        alphanum_list_     = 21 ,        // option parsed was an alpha-numeric (string) list
+        usrdef_list_       = 22 ,        // user-specified printable characters modulo user-specified delimiters
+        anystr_list_       = 23          // all printable characters, modulo a literal-set, and modulo user-specified delimiters (we do modulo delims first)
+    };
+
+} } } // namespace nicta::util::cmdline
+
+
+
+FINALLY! an example:
+--------------------
+
+Consider the following:    --numopt=<num>                               // we expect a numeric value
+                           --aflag                                      // a flag (recall flags are by nature are always optional)
+                           --alphanum-list=<alphanum-csv-list>          // we expect an alpha-numeric csv-like list
+                           --option=<string>[73,-9]                     // we expect a string, otherwise default to '73,-9' (let's interpret them as a numeric list)
+                           [--optional=<unsigned_int>]                  // an unsigned int, but it is optional
+
+
+Initialize the map:
+
+    std::string usage("--numopt=<num> --aflag --alphanum-list=<alphanum-csv-list> --option=<string[73,-9] [--optional=<unsigned_int>]");
+
+    opt_map m(argc, argv, usage);
+
+
+Do the parse:
+
+    opt<numeric, required>::parse(m, "--numopt");
+
+    opt<flag, optional>::parse(m, "--aflag");
+
+    opt<alphanum_list, required>::parse(m, "--alphanumlist");
+
+    opt<alphanum, numeric_list>::parse(m, "--option", "73,-9");
+
+    ContainerModel cm = opt<unsigned_int, optional>::parse(m, "--optional");       // returns nicta::util::cmdline::absent_ if not present on command-line
+
+
+You will notice that for those options that did not have a default (all but "--option"),
+and was required, or was a flag (and consequently optional), we had to be a little 
+verbose, and specify whether they were `required' or `optional'.  To circumvent this 
+kind of tedium, there is a convenience class named `opt_' that identifies such cases 
+for us, so you could alternatively have written:
+
+    opt_<numeric>::parse(m, "--numopt");                                           // abbrieviated syntax
+
+    opt_<flag>(m, "--aflag");                                                      // abbrieviated syntax
+
+    opt_<alphanum_list>::parse(m, "--alphanumlist");                               // abbrieviated syntax
+
+    opt<alphanum, numeric_list>::parse(m, "--option", "73,-9");                    // no change, has default value
+
+    ContainerModel cm = opt<unsigned_int, optional>::parse(m, "--optional");       // no change, is optional non-flag parameter
+
+
+
+# Parsing XOR Options:
+----------------------
+
+Often you will find yourself in a situation where you will have one of several
+options the user can invoke, but can only choose one and only one such option;
+this is the familiar xor-option;
+
+Consider the following:    --opt1=<num> | --opt2=<string> | --flag1     // one and only one option is allowed (and expected!)
+
+Ordinarily, to parse such a thing, we would again have to turn to if-else
+logic that we are so desperatly trying to avoid - thankfully there is a
+solution:
+
+    namespace nicta {
+    namespace util {
+    namespace cmdline {
+
+        template < typename T1
+                [, typename T2, ..., typename TN]
+                 , typename U
+                 >
+        class opt_xorN;                           // where `N' is the number of mutally exclusive options
+
+    } } } // namespace nicta::util::cmdline
+
+
+NOTES:
+
+*  In the absence of parameter packs (variadics), we use the Boost.Preprocessor to
+   accommodate variable length command-line "XOR-lists" - the means to specify
+   that one of a series of mutually exclusive options are expected.  Consequently 
+   there is a bound on the allowable count of such option-lists, dictated by the
+   Boost.PP library.  The cmdline library default limits all such lists to 11, but
+   can be overriden by users, with a `-DNICTA_MAX_ARITY=N' define on compilation,
+   where `N' is the arity.
+
+*  In the case where N=1, `opt_xor1' has the same calling semantics as `class opt',
+   (a degenerate use-case).
+
+*  When N>=2, each `T_i' is the type of each of the mutually exclusive options
+   sought to test for.
+
+*  `U' as expected is either `nicta::util::cmdline::required' (as for the example
+   noted above), or `nicta::util::cmdline::optional' when we intend to make the
+   entire xor-list optional, as in:
+
+      [--opt1=<num> | --opt2=<string> | --flag1]                        // one and only one option is allowed (but all are optional!)
+
+
+
+Other than a change of name, class opt_xorN has the same calling semantics as
+observed for `class opt', with the exception that the return type is no longer
+`ContainerModel', but:  `nicta::util::cmdline::xor_result', a typedef, namely:
+
+    typedef std::pair<nicta::util::cmdline::ContainerModel, std::string> xor_result;
+
+
+Where the first parameter of the pair is the familiar `ContainerModel' of the
+`parse' memeber functions we've seen before, while the second parameter is the
+string representing the name of the option found and parsed among the mutually
+exclusive xor-options in context.  If the xor-list is marked `optional', and
+no options of the xor-options context was found on the command-line, then
+the xor_result contains `nicta::util::cmdline::absent' as the first element
+of the pair, and the second element of the pair is an empty string.
+
+
+
+Example Parsing XOR Options:
+----------------------------
+
+Consider:  --opt1=<num> | --opt2=<string> | --flag1
+           [--opt3=<num> | --opt4=<alphanum> | --flag2]
+
+
+Assuming we've already initialized some opt_map `e', then we proceed to parse
+as follows:
+
+    xor_result xr1 = opt_xor3< numeric
+                             , alpha
+                             , flag
+                             >::parse(e, "--opt1", "--opt2", "--flag1");
+
+    xor_result xr2 = opt_xor3< numeric
+                             , alphanum
+                             , flag
+                             >::parse(e, "--opt3", "--opt4", "--flag2");
+
+
+Assuming `--opt2' was provided on the command-line, and none of
+{ --opt3, --opt4, --flag2 } was present on the command-line, then we get
+the following output from both calls:
+
+
+    assert(xr1.first == alpha_);
+    assert(xr1.second == std::string("--opt2"));
+
+    assert(xr2.first == absent_);
+    assert(xr2.second.empty() == true);
+
+
+
+###################
+# IMPORTANT NOTE: #
+###################
+
+Once done parsing your command-line, you should **ALWAYS** check to see
+that you have parsed everything from your `opt_map'; you do this with a 
+call to member function `full_match()' on the class `opt_map', which
+returns `true' if everything on the command-line was parsed, or `false'
+otherwise.
+
+
+    namespace nicta {
+    namespace util {
+    namespace cmdline {
+
+        class opt_map
+        {
+        public:
+
+            bool
+            full_match() const throw ();
+        };
+
+    } } } // namespace nicta::util::cmdline
+
+    
+
+[[ Parameter Value Access ]]
+
+We have now initialized and registered command-line arguments, what remains
+is to retrieve the values, and query the `opt_map' instance.  Including the
+public method `full_match()' which we have already covered, there are a few
+other members to the class:
+
+
+    namespace nicta {
+    namespace util {
+    namespace cmdline {
+
+        class opt_map
+        {
+        public:
+
+            template <typename T>
+            typename T::type &
+            get(const char* key) const throw (nicta_exception);
+
+            template <typename T>
+            typename T::type &
+            get(const std::string& key) const throw (nicta_exception);
+
+                - gets the value of a NON-FLAG long-option from a registered opt_map, with the name of the option
+                  being that named in parameter `key' as a reference
+
+                - the template parameter `T' indicates the type of long-option value we expect, which is
+                  any of {type-1, type-2, type-3, type-4, type-5, type-6}, modulo the type `nicta::util::cmdline::flag'
+
+                - an error is thrown if the sought long-option does not exist
+
+                - the reference return-type is an atomic type or std::vector of an atomic type (if `T' is a long-option
+                  list-type); the fundamental (atomic) types being one of the nested types of `nicta::csv::csv_type';
+                  the correspondences listed below:
+
+
+                                typename T                 ---->               typename T::type
+
+                      nicta::util::cmdline::boolean                              bool
+                      nicta::util::cmdline::binary                               long double
+                      nicta::util::cmdline::octal                                long double
+                      nicta::util::cmdline::hexadecimal                          long double
+                      nicta::util::cmdline::signed_int                           long long int
+                      nicta::util::cmdline::unsigned_int                         unsigned long long int
+                      nicta::util::cmdline::numeric                              long double
+                      nicta::util::cmdline::alpha                                std::string
+                      nicta::util::cmdline::alphanum                             std::string
+                      nicta::util::cmdline::usrdef                               std::string
+                      nicta::util::cmdline::anystr                               std::string
+                      nicta::util::cmdline::boolean_list                         std::vector<bool>
+                      nicta::util::cmdline::binary_list                          std::vector<long double>
+                      nicta::util::cmdline::octal_list                           std::vector<long double>
+                      nicta::util::cmdline::hexadecimal_list                     std::vector<long double>
+                      nicta::util::cmdline::signed_int_list                      std::vector<long long int>
+                      nicta::util::cmdline::unsigned_int_list                    std::vector<unsigned long long int>
+                      nicta::util::cmdline::numeric_list                         std::vector<long double>
+                      nicta::util::cmdline::alpha_list                           std::vector<std::string>
+                      nicta::util::cmdline::alphanum_list                        std::vector<std::string>
+                      nicta::util::cmdline::usrdef_list                          std::vector<std::string>
+                      nicta::util::cmdline::anystr_list                          std::vector<std::string>
+
+
+
+            template < typename T
+                     , typename U
+                     >
+            typename T::type
+            get(const char* key) const throw (nicta_exception);
+
+            template < typename T
+                     , typename U
+                     >
+            typename T::type
+            get(const std::string& key) const throw (nicta_exception);
+
+                - gets the value of a {NON-LIST, NON-FLAG, NON-ALPHA, NON-ALPHANUM} long-option from a registered
+                  opt_map, with the name of the option being that named in parameter `key'
+
+                - the template parameter `T' indicates the type of long-option value we expect, which is
+                  any of {type-1}, modulo the types {nicta::util::cmdline::flag, nicta::util::cmdline::alpha, nicta::util::cmdline::alphanum}
+
+                - an error is thrown if the sought long-option does not exist
+
+                - the NON-REFERENCE return-type is a user-specified atomic type delineated by the template parameter `U';
+                  the underlying possible types returned here are one of the nested types of `nicta::csv::csv_type';
+                  the correspondences listed below:
+
+
+                                typename T                 ---->               typename T::type
+
+                      nicta::util::cmdline::boolean                              bool
+                      nicta::util::cmdline::binary                               long double
+                      nicta::util::cmdline::octal                                long double
+                      nicta::util::cmdline::hexadecimal                          long double
+                      nicta::util::cmdline::signed_int                           long long int
+                      nicta::util::cmdline::unsigned_int                         unsigned long long int
+                      nicta::util::cmdline::numeric                              long double
+
+
+
+            template <typename T>
+            void
+            insert(const std::pair<std::string, T>& p) throw (nicta_exception);
+
+                - provides a means to programmatically modify a registered opt_map, by adding a registered
+                  long-option as named by the first parameter of the pair argument `p'
+
+                - the second parameter of the pair argument `p' is the type of the long-option, and as indicated
+                  by the template parameter `T'; this is any of {type-1, type-2, type-3, type-4, type-5, type-6},
+                  modulo the type `nicta::util::cmdline::flag'
+
+                - if the long-option named (the first paramenter of the pair argument `p') already exists, then
+                  an error is thrown
+
+                - this method should be used with caution, as it amounts to modifying the intent expressed
+                  on the command-line by the user
+
+
+            void
+            insert(const char* flag) throw ();
+
+                - provides a means to programmatically modify a registered opt_map, by adding a registered
+                  flag as named in the parameter `flag'
+
+                - if a flag by the same name exists, no error is thrown
+
+                - this method should be used with caution, as it amounts to modifying the intent expressed
+                  on the command-line by the user
+
+
+            template <typename T>
+            void
+            erase_key(const char* key) throw (nicta_exception);
+
+                - erase an option from the map of type `T'
+
+                - throws if option not found in map of type `T'
+
+                - WARNING:  you will be left with dangling references to any key/value pair you remove and
+                            once previously held by reference
+
+
+            bool
+            erase_flag(const char* flag) throw ();
+
+                - erase a flag from the map nicta::util::cmdline::flag, and return `true'
+
+                - returns `false' if the flag did not exist
+
+
+            template <typename T>
+            bool
+            have_key(const char* key) const throw ();
+
+            template <typename T>
+            bool
+            have_key(const std::string& key) const throw ();
+
+                - returns `true' if a registered opt_map contains the long-option named in parameter `key'
+
+                - the template parameter `T' indicates the type we expect the long-option to be, this is
+                  any of {type-1, type-2, type-3, type-4, type-5, type-6}, modulo the type `nicta::util::cmdline::flag'
+
+
+            bool
+            have_flag(const char* flag) const throw ();
+
+                - returns `true' if a registered opt_map contains the flag named in parameter `flag'
+
+
+            bool
+            have_flag(const std::string& flag) const throw ();
+
+                - returns `true' if a registered opt_map contains the flag named in parameter `flag'
+
+
+            const std::string&
+            usage() const throw ();
+
+                - returns the synopsis (`usage') string passed to the opt_map on construction
+        };
+
+    } } } // namespace nicta::util::cmdline
+
+
+
+NOTE:
+
+You *can* always query an opt_map instance *before* you parse a flag or option into expected type
+by querying if the said flag or option is of type `nicta::util::cmdline::preparse'.  Once an
+option is parsed however, attempting to query with `preparse' will thereon always yield a `false'
+query result.
+
+
+
+A Full Example:
+---------------
+
+Consider the synopsis from the unit-test:
+
+    --numopt=<num> --alphaopt=<str> --numlist=<num-csv-list> --alphanumlist=<alphanum-csv-list>
+    --option=<string>[73,-9] [--aflag] [--optional=<uint>]
+    --opt1=<num> | --opt2=<string> | --opt3=<num> | --flag1 | --flag2
+     [--opt5=<num> | --opt6=<string> | --opt7=<num> | --flag3 | --flag4]
+
+
+
+Now initialize and parse an opt_map instance named `K', and let the string `usage' contain the
+above noted synopsis:
+
+
+* Initialize:
+
+    opt_map K(argc, argv, usage);
+
+
+* /Optionally/ make pre-parse queries:
+
+    bool b1 = K.have_key<preparse>("--numopt");
+    bool b2 = K.have_flag<preparse>("--aflag");
+
+
+* Parse:
+
+    opt_<numeric>::parse(K, "--numopt");
+    opt_<alphanum>::parse(K, "--alphaopt");
+    opt_<numeric_list>::parse(K, "--numlist");
+    opt_<alphanum_list>::parse(K, "--alphanumlist");
+
+    ContainerModel cm1 = opt<alphanum, numeric_list>::parse(K, "--option", "73,-9");
+
+    opt_<flag>::parse(K, "--aflag");
+
+    ContainerModel cm2 = opt<unsigned_int, optional>::parse(K, "--optional");
+
+    xor_result xresult1 = opt_xor5< numeric
+                                  , alphanum
+                                  , numeric
+                                  , flag
+                                  , flag
+                                  , required
+                                  >::parse(K, "--opt1", "--opt2", "--opt3", "--flag1", "--flag2");
+
+    xor_result xresult2 = opt_xor5< numeric
+                                  , alphanum
+                                  , numeric
+                                  , flag
+                                  , flag
+                                  , optional
+                                  >::parse(K, "--opt5", "--opt6", "--opt7", "--flag3", "--flag4");
+
+
+
+* IMPORTANT:  MAKE THE PARSE CHECK !!
+
+    assert(K.full_match() == true);
+
+
+
+* Access Option Values and Query Flags:
+
+    numeric::type numopt                    = K.get<numeric>("--numopt");
+    alphanum::type alphaopt                 = K.get<alphanum>("--alphaopt");
+    const numeric_list::type& numlist       = K.get<numeric_list>("--numlist");
+    const alphanum_list::type& alphanumlist = K.get<alphanum_list>("--alphanumlist");
+
+    alphanum::type* option_an      = 0;
+    numeric_list::type* option_nli = 0;
+    if (cm1 == alphanum_)
+    {
+        option_an  = &K.get<alphanum>("--option");
+    }
+    else  // cm1 == numeric_list_
+    {
+        option_nli = &K.get<numeric_list>("--option");
+    }
+
+    bool aflag    = K.have_flag("--aflag");
+    bool optional = K.have_key<unsigned_int>("--optional");      // alternatively for same effect:  bool optional = (cm2 != absent_);
+
+    // For brevity:  assume `--opt3'  is present on the command-line:
+    assert(xresult1.first  == numeric_);
+    assert(xresult1.second == std::string("--opt3");
+    numeric::type xr1 = K.get<numeric>(xresult1.second);
+
+
+    // For brevity:  assume none of {--opt5, --opt6, --opt7, --flag3, --flag4} are present on the command-line:
+    assert(xresult2.first == absent_);
+    assert(xresult2.second == std::string());
+
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

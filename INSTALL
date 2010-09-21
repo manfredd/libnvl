@@ -1,0 +1,86 @@
+/////////////////////////////////////////////////////////////////////////////////////////////
+// Copyright (c) 2010 Manfred Doudar, NICTA Ltd.
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+/////////////////////////////////////////////////////////////////////////////////////////////
+
+
+Before you compile and install the Nicta libraries, you will need to first install a host of 
+3rd party libraries; these are broken down into the following:
+
+1. OpenCV and its dependencies [including but not limited to:  libraw1394, libdc1394, libdc1394-control]
+2. Optionally, the PGR libraries and headers if you intend to use PGR stereo cameras
+3. `flite' (cut down version of `festival') for functionality of nicta_common/sound.{h,cc}
+4. CppUnit to execute the unit-tests
+5. C++ Boost Libraries (something current, 1.42 and above)
+6. A current GCC (4.4.2 and above) ..as we use some C++0x features here
+
+
+Instructions on how to install OpenCV (among other 3rd party libraries) are to be
+found in the subdriectory under here:  `3rd-party/doc/' therein, you **SHOULD**
+read the file named README therein.
+
+
+
+---------------------------------------------------------------------------------
+IMPORTANT:
+
+You should only use the OpenCV distributed with **THIS** release, since there are 
+bug fixes here not available on the main trunk, and furthermore is a consequence
+of the guys at OpenCV having broken interface more times than I care to count in
+the course of development of these libraries.  Contained herein is a patched
+OpenCV-1.1_pre1 release with fixes to work under linux (including file-writing),
+and bugs fixes to cvMatND predominantly, among others!
+---------------------------------------------------------------------------------
+
+
+
+To install the Nicta libraries in this package, you must run `make install' at the
+command line, and provide an **ABSOLUTE** directory path of where you would like
+these libraries installed FROM THIS (the top-level) DIRECTORY.
+
+Example:  to install the libraries under /usr/local/opt/nicta, issue the following at
+          the command line (CL) prompt:
+
+              CL>  make install INSTALL_PATH=/usr/local/opt/nicta
+
+
+The majority of libraries here are header-file only, however, there are 2 or 3 that
+are not, so you will then need to appropriately set your LD_LIBRARY_PATH environment
+variable:
+
+..continuing with the example above, you would (for a bash shell), set the following
+in your .bashrc resource file:
+
+              export LD_LIBRARY_PATH=/usr/local/opt/nicta/lib:$LD_LIBRARY_PATH
+
+
+When you compile code using any of these libraries, you will need to ensure that GCC
+can find the library includes, so be sure to issue a -I/path/to/these/library/includes;
+
+..in the spirit of the above, assuming you installed the libraries to /usr/local/opt/nicta
+then your include path would be:
+
+              -I/usr/local/opt/nicta/include
+
+
+
+---------------------------------------------------------------------------------
+NOTE:
+
+These libraries have been developed and tested under Linux (both 32bit & 64bit), 
+and expect them to work under any POSIX platform.  No testing or development under
+Windows has been done, so I can not speak of any support for that platform.
+---------------------------------------------------------------------------------
+
+
+
+**  For further details, consult the 'README' file in this directory. **
+
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+

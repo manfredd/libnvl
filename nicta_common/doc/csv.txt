@@ -1,0 +1,255 @@
+/////////////////////////////////////////////////////////////////////////////////////////////
+// Copyright (c) 2010 Manfred Doudar, NICTA Ltd.
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+/////////////////////////////////////////////////////////////////////////////////////////////
+
+
+NICTA CSV:  a library for parsing string delimited homogeneous types with ease.
+The unit test and API are additional tools to better understand this library.
+
+
+Two modes of parsing exist:  parsing with delimiters interpreted as character
+literals, and the other, parsing with delimiters as contiguous strings.  Otherwise,
+behaviour is the same, with the exception that character-type delimiters can not
+prefix or postfix a parse context, while string-type delimiters can.
+
+The parse context can be any of 11 homogenous representations (the CSVType):
+
+                                                                                                                    UNDERLYING TYPE
+
+  - boolean:        true, false, T, F, 1, 0      [case insensitive]                                                 bool
+
+  - binary:         +-  0-1.0-1p0-9<b>           [trailing 'b' is optional]                                         long double
+
+  - octal:          +-  0-7.0-7p0-9<o>           [trailing 'o' is mandatory]                                        long double
+                    +-  <0>0-7.0-7p0-9           [leading '0' is mandatory]
+
+  - hexadecimal:    +-  0-9A-F.0-9A-Fp0-9<h>     [trailing 'h' is mandatory]                                        long double
+                    +-  <0x>0-9A-F.0-9A-Fp0-9    [leading '0x' is mandatory]
+
+  - signed_int:     +-  0-9                                                                                         long long int
+
+  - unsigned_int:   +   0-9                                                                                         unsigned long long int
+
+  - numeric:        +-. 0-9                      [includes decimal point]                                           long double
+
+  - alpha:          a-zA-Z                                                                                          std::string
+
+  - alphanum:       a-zA-Z +- 0-9                [does not include decmimal point]                                  std::string
+
+  - usrdef:         user-specified printable characters, modulo user-specified delimiters                           std::string
+
+  - anystr:         all printable characters, modulo a set of literals, and modulo user-specified delimiters        std::string
+
+
+
+As might be observed, support is built for the floating-point binary, octal, and hexadecimal strings;
+information about such representations is available in the link below, which briefly describes ISO C99
+support for floating-point hexadecimal numbers (whereof binary and octal representations follow):
+
+    http://www.redhat.com/docs/manuals/enterprise/RHEL-4-Manual/gcc/hex-floats.html
+
+
+
+
+-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+THE API:
+-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+
+
+There are two things you may commonly want to do:
+
+1.  validate a non-delimited string, and in the case of arithmetic (includes boolean) types,
+    return the value in non-stringized form
+
+2.  parse a delimited string
+
+
+NOTE:  parsing validates the entire string context
+
+
+
+[[ VALIDATING A STRING ]]
+
+To validate a string, first instantiate a validate instance with one of the 11 representation
+types (the CSVType) passed as a template parameter:
+
+
+    namespace nicta {
+    namespace csv {
+
+        template <typename nicta::csv::CSVType>
+        class validate;
+
+    } } // namespace nicta::csv
+
+
+
+    * If you intend to validate you parse context as an arithmetic-type, you will invoke the
+      a two argument callable operator of class `validate':
+
+         
+          bool                                                        // returns `true' if parse succeeded, `false' otherwise
+          operator()(const char* arg,                                 // the parse context
+                     csv_type<nicta::csv::CSVType>::type& e           // the parse result (on success)
+                    ) const throw ();
+
+
+          Example:   csv_type<nicta::csv::numeric>::type value;
+                     bool result = validate<nicta::csv::numeric>()("132.984", value);
+
+
+
+
+    * If you intend to validate your parse context as either `alpha' or `alphanum', you will
+      invoke the single argument callable operator of class `validate':
+
+          bool                                                        // returns `true' if parse succeeded, `false' otherwise
+          operator()(const char* arg) const throw ();                 // the parse context
+
+
+          Example:   csv_type<nicta::csv::alpha>::type value;
+                     bool result = validate<nicta::csv::numeric>()("abcde");
+
+
+
+
+    * If you intend to validate your parse context as either of `usrdef' or `anystr', you will
+      invoke a two argument callable operator of class `validate':
+
+          bool                                                        // returns `true' if parse succeeded, `false' otherwise
+          operator()(const char* arg,                                 // the parse context
+                     const char* literals                             // see below...
+                    ) const throw ();
+
+
+              - If CSVType is nicta::csv::usrdef, `literals' defines the characters allowed
+                to appear in the parse context `arg'.
+                `literals' for nicta::csv::usrdef defaults to the string "0-9a-zA-Z.*/_+-".
+
+              - If CSVType is nicta::csv::anystr, the parse will succeed if the parse context
+                does *not* contain any of the characters appearing in the string `literals'.
+                If `literals' is a null-pointer, then all printable characters are allowed to
+                appear in the parse context `arg'.
+                `literals' for nicta::csv::anystr defaults to `0' (null pointer).
+          
+
+
+
+[[ PARSING A DELIMITED STRING ]]
+
+
+The `csv' class is templated on 2 parameters; the first being the converted-to type (upon
+conversion from string), and the second being a template template parameter delineating the
+container type used to contain the delimited, now converted-to string values of the parse
+context:
+
+    namespace nicta {
+    namespace csv {
+
+        template < typename T
+                 , template <typename T_, typename A_ = std::allocator<T_> > class Ctr
+                 >
+        class csv;
+
+    } } // namespace nicta::csv
+
+
+
+To parse your strings, you will need to:
+
+  - first, determine how you would like to interpret your parse context
+
+  - second, determine whether you are to interpret your delimiters as literals or strings
+
+  - third, determine the underlying type you want to convert your parse context to, and
+    the container type to buffer the delimited substrings
+
+
+  The first two requirements will determine whether you call a 2 or 3 argument callable
+  operator of class `csv'; the 3 argument form being used if you intend to interpret you
+  parse context as either `usrdef' or `anystr' types; and the 2 argument form otherwise.
+
+  The third requirement determines how you instantiate an instance of class `csv'.
+
+
+
+    * 2-argument callable operator:
+
+          template < nicta::csv::CSVType P                 // is either:  `usrdef'  or  `anystr'
+                   , nicta::csv::DelimiterType D           // is either:   `char_'  or  `string_'
+                   >
+          bool                                             // returns `true' if the parse succeeded, `false' otherwise
+          operator()(const char* arg,                      // the parse context
+                     const char* delimiter                 // token on which to parse `arg' - interpreted either as literals, or a string, depending on choice of DelimiterType
+                    ) const throw ();
+
+
+              - If DelimiterType is nicta::csv::char_, `delimiter' is interpreted as a series
+                of character literals.
+                `delimiter' for nicta::csv::char_ defaults to tokens ",;:".
+
+              - If DelimiterType is nicta::csv::string_, `delimiter' is interpreted as a
+                character string.
+                `delimiter' for nicta::csv::string_ defaults to whitespace " ".
+
+
+
+          Example:  std::vector<double> vec;
+                    nicta::csv::csv<double, std::vector> p(vec);
+                    bool result = p.operator()<numeric, char_>("123x-0.3", "x");
+
+                    assert(result == true);
+                    assert(vec[0] == 123);
+                    assert(vec[1] == -0.3);
+
+
+
+
+    * 3-argument callable operator:
+
+          template < nicta::csv::CSVType P                 // is either:  `usrdef'  or  `anystr'
+                   , nicta::csv::DelimiterType D           // is either:   `char_'  or  `string_'
+                   >
+          bool                                             // returns `true' if the parse succeeded, `false' otherwise
+          operator()(const char* arg,                      // the parse context
+                     const char* delimiter,                // token(s) on which to parse `arg' - see below..
+                     const char* literals                  // see below..
+                    ) const throw ();
+
+
+              - If DelimiterType is nicta::csv::char_, `delimiter' is interpreted as a series
+                of character literals.
+                `delimiter' for nicta::csv::char_ defaults to tokens ",;:".
+
+              - If DelimiterType is nicta::csv::string_, `delimiter' is interpreted as a
+                character string.
+                `delimiter' for nicta::csv::string_ defaults to whitespace " ".
+
+              - If CSVType is nicta::csv::usrdef, `literals' defines the characters allowed
+                to appear in the parse context `arg'.
+                `literals' for nicta::csv::usrdef defaults to the string "0-9a-zA-Z.*/_+-".
+
+              - If CSVType is nicta::csv::anystr, the parse will succeed if the parse context
+                does *not* contain any of the characters appearing in the string `literals'.
+                If `literals' is a null-pointer, then all printable characters are allowed to
+                appear in the parse context `arg'.
+                `literals' for nicta::csv::anystr defaults to `0' (null pointer).
+
+
+
+          Example:  std::vector<std::string> vec;
+                    nicta::csv::csv<std::string, std::vector> p(vec);
+                    bool result = p.operator()<anystr, string_>("123sq,@-0.3i3sp", "3s");
+
+                    assert(result == true);
+                    assert(vec[0] == std::string("12"));
+                    assert(vec[1] == std::string("q,@-0.3i"));
+                    assert(vec[2] == std::string("p"));
+
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

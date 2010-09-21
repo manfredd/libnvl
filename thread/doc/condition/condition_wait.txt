@@ -1,0 +1,101 @@
+/////////////////////////////////////////////////////////////////////////////////////////////
+// Copyright (c) 2010 Manfred Doudar, NICTA Ltd.
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+/////////////////////////////////////////////////////////////////////////////////////////////
+
+
+THREAD CONDITION-WAITER:  the functionality contained herein blocks one thread
+until notification is received to check if a said condition is met.
+
+
+There are a series of conceptual steps that delineate usage:
+
+
+1.  A condition_wait object is initialized with a boolean state, against which
+    on change of this state, or more generally composite condition (through a 
+    predicate), user will want to notify one or more waiting threads to wake.
+
+
+        // declare underlying mutex to manage, and initialize object state (to false)
+
+        condition_wait<boost::mutex> waiter(false);
+
+
+
+2.  In a waiting thread, declare intention to wait for some predicate 
+    condition to yield, and the type of lock with which we are going to 
+    acquire hold of the underlying mutex.  The predicate is either a free 
+    function, or class member function returning a boolean.
+
+
+
+    * For free-function predicate (and variants):    R foo(arg1, ..., argN);
+
+
+        // wait on predicate
+
+        waiter.operator< R              // Predicate return type (bool)
+                       , arg1-type
+                       , ...
+                       , argN-type
+                       , Lock-type
+                       >
+                       (&foo, arg1, ..., argN);
+
+
+
+    * For member-function predicate (and variants):    R C::foo(arg1, ..., argN);
+
+         // wait on predicate
+
+         waiter.operator< R             // Predicate return type (bool)
+                        , C             // Class type
+                        , arg1-type
+                        , ...
+                        , argN-type
+                        , Lock-type
+                        >
+                        (&C::foo, C-instance, arg1, ..., argN);
+
+
+
+NOTE:  The conceptual design of a condition-waiter intends that a predicate will test
+       the state of the condition-waiter (along with other composite conditions to be
+       satisfied).
+
+       A condition_waiter is tested for it's state by calling the it's function-call
+       operator with no arguments.
+
+
+       Example:
+
+
+           bool foo(int value)
+           {
+               return waiter() && !value;
+           }
+
+
+
+3.  On the control thread, once the implied condition is satisfied, the condition-waiter
+    state should be toggled (from above example, state to change from 'false' to 'true'), 
+    and delineate the means by which to notify waiting threads.
+
+
+        // notify only one thread, and toggle state
+
+        waiter.operator()<NotifyOne>(true);
+
+
+
+
+[[ TODO ]]
+
+    * Support for a timed condition_wait object is pending.
+
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

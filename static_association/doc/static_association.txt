@@ -1,0 +1,116 @@
+/////////////////////////////////////////////////////////////////////////////////////////////
+// Copyright (c) 2010 Manfred Doudar, NICTA Ltd.
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+/////////////////////////////////////////////////////////////////////////////////////////////
+
+
+STATIC_ASSOCIATION:  used to generate a static associative map, a work around for a time when
+uniform initialization of standard containers was just a pipe-dream (pre C++0x).
+
+
+    namespace nicta {
+
+        template < typename key_type
+                 , typename value_type
+                 >
+        struct association
+        {
+            key_type key;
+            value_type value;
+        };
+
+
+        template < typename key_type
+                 , typename value_type
+                 >
+        class static_association;
+
+    } // namespace nicta
+
+
+The principal class is `static_association', while the struct `association' is used to
+facilitate construction of key-value associative pairs using curly-brace initialization
+of array objects - whence an association-array.  Once an association-array is constructed,
+a static-association object can be initialized, and consequently queried.
+
+
+Sample construction of an association array:
+
+    association<std::string, int> assoc_array[] = { { "john"  , 23 } ,
+                                                    { "david" , 18 } ,
+                                                    { "susan" , 47 } };
+
+
+Thereafter, a `static_association' instance can be constructed, and its elements queried.
+Example of such an instance, and its use presented in the discussion of the API below.
+
+
+-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+THE API:
+-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+
+We present the API for the class `static_association' below, which has only 1 constructor
+and 3 query member functions:
+
+
+    * static_association(const association<key_type, value_type>* array,
+                         size_t array_size
+                        ) throw ();
+
+          - Constructor.
+
+          - `array' is a statically initialized association object (see assoc_array above
+             for such an example).
+
+          - `array_size' is just that, the number of elements in `array', which would take
+             an expression of the following form:
+
+                 sizeof(array) / sizeof(array[0]);
+
+          - Using the example above, we can now create a static_association instance from
+            assoc_array; this will ordinarily be qualified `static' as in the case below:
+
+                static static_association<std::string, int> smap(assoc_array, size_of(assoc_array) / sizeof(assoc_array[0]));
+
+
+
+    * bool
+      has_key(key_type key) throw ();
+
+          - Query if our map has the map-key `key'.
+
+          - Continuing with our example, we can now write:
+
+                assert(smap.has_key(std::string("john")) == true);
+
+
+
+    * value_type
+      operator()(key_type key) throw (nicta_exception);
+
+          - Returns the value associated with the map-key `key'; throwing an exception if
+            the key does not exist.
+
+          - Continuing with our example, we can now write:
+
+                assert(smap.operator()(std::string("susan")) == 47);
+
+
+
+    * size_t
+      size() throw ();
+
+          - Returns the number of elements in the static_association instance.
+
+          - Continuing with our example, we can now write:
+
+                assert(smap.size() == 3);
+
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+

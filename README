@@ -1,0 +1,155 @@
+/////////////////////////////////////////////////////////////////////////////////////////////
+// Copyright (c) 2010 Manfred Doudar, NICTA Ltd.
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+/////////////////////////////////////////////////////////////////////////////////////////////
+
+
+INSTRUCTIONS:
+==================================================================================
+
+1.  read  3rd-party/doc/README
+
+2.  read  doc/README
+
+3.  install all OpenCV dependencies
+
+4.  install OpenCV from the source tar-ball provided in **THIS** release, found here:
+
+       3rd-party/opencv-1.1.0_pre1.tar.bz2
+
+
+3.  read  *.txt documentation for each library under directory `doc' for each of libraries:
+
+       - image
+       - video
+       - nicta_common
+       - thread
+       - ocv_matrix
+       - ocv_converters
+       - image_header
+       - avi_header
+       - static_association
+       - fwd
+
+    ..all of which detail the API, and important information about assumptions made, and
+    matters like setup of ENVIRONMENT VARIABLES and their purpose.
+
+    For use and understanding of the Nicta libraries, a read of libraries `image' and `video'
+    are a must for anyone before progressing any further.
+
+
+4.  now you can install the Nicta libraries as explained in the file `INSTALL' at the top
+    level directory.
+
+
+
+***************************
+NOTE:
+***************************
+
+The following libraries in this release are independent of OpenCV or any of its
+dependencies, and can be used independently:
+
+    - nicta_common          [*]
+    - thread
+    - static_association
+
+The above named libraries depend only upon the C++ Standard Library, and C++ Boost Libraries;
+and to repeat the above:  consequently, you can use these libraries independently of anything
+else in this release.
+
+
+[*] if you want to use anything from sound.{h,cc} you will need 3rd-party open-source package
+    `flite' installed on your system; which is a cut-down version of `festival' for facilitating
+    text-to-speech.
+
+
+
+All other libraries, either directly or indirectly depend upon OpenCV and its dependencies;
+namely:
+
+    - image
+    - video
+    - ocv_matrix
+    - ocv_converters
+    - image_header
+    - avi_header
+    - fwd
+
+
+
+
+OPERATING SYSTEMS/ PLATFORMS:
+==================================================================================
+
+I only do Unix/Linux, and C++.
+
+I do NOT do Apple-Mac, or MS-Windows, so please don't ask me about these.
+
+The work here in this release is aimed at standards conformance, so it's more than 
+likely that these libraries will work under your platform of choice, on the proviso
+that you have a sufficiently standards conforming C++ compiler!
+
+I will not undertake work (if that is needed) to target other than Unix/Linux
+platforms.  If however, someone else is prepared to do the work, by all means ..you 
+are welcome to do so.  
+
+
+
+
+SUPPORT:
+==================================================================================
+
+I tend to be a busy guy, but am open to answering questions, provide help, and guidance
+where I can.
+
+Before you ask, be sure to search the web for answers, ask your peers, ask from others
+nearby:
+
+- If you need help with C++, your best source for help is comp.lang.c++.moderated
+
+- If you need help with C++ Boost, try the boost.users or boost.devel newsgroups
+
+- If you need help with OpenCV, I think there is an OpenCV newsgroup - no, I am not a member,
+  and nor do I read or follow that group
+
+
+If you are to throw questions my way, be sure to provide sufficient detail in your emails, 
+and that your sentences parse into proper and understandable english, and ensure your ideas
+are well thought out.
+
+If you spot any bugs or suggestions, also feel free to contact me.
+
+
+You can report bugs, report errors, ask for help, raise queries, need consultancy services, 
+or even simply to let me know what you think of the libraries in this release, you can 
+contact me at:
+
+    Manfred Doudar <libnvl@gmail.com>
+
+
+I would be happy if the community bands together, and creates some kind of support group
+of their own, even take to develop the libraries herein further.  It would be great if
+the libraries herein, and community can influence direction, and quality of what comes
+out of future OpenCV releases.
+
+
+
+
+FUTURE WORK:
+==================================================================================
+
+For each library herein, I've detailed where likely, future efforts may (or should be addressed).
+
+When I would have chance to do more work on these libraries, I don't know, but would be very
+happy to hear if the community itself takes charge and further develops and maintains these
+libraries further.
+
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+

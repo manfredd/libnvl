@@ -1,0 +1,107 @@
+/////////////////////////////////////////////////////////////////////////////////////////////
+// Copyright (c) 2010 Manfred Doudar, NICTA Ltd.
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+/////////////////////////////////////////////////////////////////////////////////////////////
+
+
+NICTA UTIL:  miscellaneous utility functions.
+
+
+WHAT IS HERE:  7 utility functions associated either with time, environment
+variables, or calling system commands.  The functions presented here all live
+in namespace nicta::util.
+
+
+
+
+-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+THE API:
+-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+
+
+[[ 7 Free Functions ]]
+
+
+    * bool
+      nanosecond_resolution() throw();
+
+          - Return `true' if BOOST_DATE_TIME_POSIX_TIME_STD_CONFIG is defined,
+            and `false' otherwise.
+
+
+
+    * boost::posix_time::time_duration
+      fps_period(double fps) throw ();
+
+          - Return frames-per-second expressed as a time duration.
+
+                Example:  25 fps is equivalent to a time duration of 40 milliseconds.
+
+
+
+    * double
+      period_fps(boost::posix_time::time_duration td) throw ();
+
+          - Express a time duration as frames-per-second.
+
+                Example:  10 seconds is the equivalent measure of 0.1 fps.
+
+
+
+    * boost::posix_time::time_duration
+      sleep(boost::posix_time::time_duration td) throw ();
+
+          - Sleep for time duration `td', returning the time remaining if an
+            interrupt was had.
+
+
+
+    * bool
+      environment_variable(const char* name,
+                           std::string& value
+                          ) throw ();
+
+          - Return the value of an environment variable named in `name', and
+            return the result into the string `value'.
+
+          - Returns `true' if sought environment variable exists, and `false'
+            otherwise.
+
+
+
+    * void
+      deduced_file(const char* env_var,
+                   const char* filename,
+                   std::string& result
+                  ) throw ();
+
+          - Returns the path to where `filename' was located into the string
+            `result', using paths delineated in environment variable `env_var'
+            to search for `filename'.
+
+          - `env_var' will be an environment variable of possible search paths,
+            with paths separated by a colon; a typical such environment variable
+            would be LD_LIBRARY_PATH.
+
+
+
+    * template < template < typename T_
+                          , typename A_ = std::allocator<T_>
+                          > class Container
+               >
+      void
+      command_capture(const char* cmd,
+                      Container<std::string>& output
+                     ) throw (nicta::nicta_exception);
+
+          - Returns the terminal output on executing the string `cmd' at a shell
+            prompt into the STL container `output'.
+
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+

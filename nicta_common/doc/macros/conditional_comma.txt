@@ -1,0 +1,31 @@
+/////////////////////////////////////////////////////////////////////////////////////////////
+// Copyright (c) 2010 Manfred Doudar, NICTA Ltd.
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+/////////////////////////////////////////////////////////////////////////////////////////////
+
+
+NICTA_CONDITIONAL_COMMA:  a useful macro to conditionally prefix a token with a comma.
+If `n' > 0, a comma prefixes the token `text', and not otherwise.
+
+
+    #define NICTA_CONDITIONAL_COMMA(z, n, text) BOOST_PP_COMMA_IF(n) text
+
+
+
+[[ Example ]]
+
+
+    * NICTA_CONDITIONAL_COMMA(_, 0, abc)      /* expands to:   abc     */
+
+
+
+    * NICTA_CONDITIONAL_COMMA(_, 1, abc)      /* expands to:   , abc   */
+
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+

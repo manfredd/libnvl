@@ -1,0 +1,55 @@
+/////////////////////////////////////////////////////////////////////////////////////////////
+// Copyright (c) 2010 Manfred Doudar, NICTA Ltd.
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+/////////////////////////////////////////////////////////////////////////////////////////////
+
+
+AS_IMAGE:  a convenience function for converting a 2-dimensional nicta::ocv::matrix::matrix<T, 2, C, 2>
+into its equivalent nicta::vibe::image::image<Depth, Pixel> representation.
+
+
+    namespace nicta {
+    namespace ocv {
+    namespace convert {
+
+        template < typename Depth
+                 , template <typename> class Pixel
+                 >
+        boost::shared_ptr< image<Depth, Pixel> >
+        as_image(const nicta::ocv::matrix::matrix< typename Depth::type
+                                                 , 2
+                                                 , Pixel<Depth>::components
+                                                 , 2
+                                                 >& matrix
+                ) throw (std::domain_error);
+
+    } } } // namespace nicta::ocv::convert
+
+
+    - Throws an exception if number of matrix channels is greater than 4.
+
+
+
+    - Is a friend function of:
+
+
+          template < typename Depth
+                   , template <typename> class Pixel
+                   >
+          class image;
+
+
+
+          template < typename T
+                   , unsigned int C
+                   >
+          class matrix<T, 2, C, 2>;
+
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+

@@ -1,0 +1,58 @@
+/////////////////////////////////////////////////////////////////////////////////////////////
+// Copyright (c) 2010 Manfred Doudar, NICTA Ltd.
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+/////////////////////////////////////////////////////////////////////////////////////////////
+
+
+NICTA SOUND:  miscellaneous sound utility functions; one of which performs text-to-speech,
+and depends upon open-source library `flite' (derived from the much larger library `festival').
+
+
+WHAT IS HERE:  2 functions, one plays a sound file through the system sound setup,
+while the other does text-to-speech using 3rd party library `flite'.  The functions
+presented here all live in namespace nicta::sound.
+
+
+NOTE:  you **WILL NEED** `flite' installed on your system, and in your PATH!
+
+NOTE:  `play_sound_file' calls the linux/ unix program 'play'; you **WILL NEED**
+'play' installed on your system, and in your PATH - 'play' is a front end to the
+more general package 'sox'.
+
+
+
+
+-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+THE API:
+-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+
+
+[[ 2 Free Functions ]]
+
+
+    * void
+      play_sound_file(const char* file) throw (nicta_exception, std::bad_exception);
+
+          - Plays any of a number of supported sound files through the system sound setup.
+
+          - Depends on having the linux/ unix program 'play' in your PATH.
+
+
+
+    * void
+      tts(const char* arg) throw (nicta_exception, std::bad_exception);
+
+          - Converts text to speech, and plays it; `arg' is either an ascii text file
+            containing the text you want converted to speech, or a string you want
+            converted to speech.
+
+          - Depends on having 3rd party library `flite' installed, and in your PATH.
+
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+

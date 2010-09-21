@@ -1,0 +1,85 @@
+/////////////////////////////////////////////////////////////////////////////////////////////
+// Copyright (c) 2010 Manfred Doudar, NICTA Ltd.
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+/////////////////////////////////////////////////////////////////////////////////////////////
+
+
+THREAD GATE:  generalization of a Singleton, designed for managing condition
+variables over read-write locks, and thin wrapper over an rw_condition_wait 
+object.
+
+
+Two class template parameters define a gate:  the first being the count N of
+gate instances managed, and the second the type of mutex underlying locks 
+wrap - default being a boost::shared_mutex.
+
+
+    // 3 gate instances, all locks managing a shared_mutex
+
+    shared_ptr<gate<3, boost::shared_mutex> > passage = 
+                       gate<3, boost::shared_mutex>::instance<0, Write>();    // pull out the first (0th) gate, with Write initialization
+
+
+As with any singleton-like API, there is a static instance member function that 
+returns a gate instance - templated on 2 parameters.  Which gate instance called 
+is specified by the user as a template parameter, bound by the number of gate 
+instances the gate class was defined as having.  The second, and more interesting 
+template parameter spells how we initiate synchronization between reads and writes,
+specifically, whether the gate is Read or Write initialized.
+
+
+To elucidate further, a gate instance will exist at both client and server ends.
+At one end, the gate will be used to access a resource for writing, and the other
+for reading.  Whether we initiate the system to begin with a Read or Write is the 
+utility of the second template parameter on the static instance method.
+
+
+
+    // now lock the underlying (RW) condition-variable, and specifiy what 
+    // action we are taking (Read or Write), and how we will lock the 
+    // gate managed shared_mutex
+
+    // Client-side:
+    passage->operator()().operator()<Read, boost::shared_lock>();    // perform reading over resource, with shared_lock over shared_mutex
+
+    // do critical work, ..read from resouce
+
+
+At the other end, will have complimentary opposing call:
+
+
+    // Server-side:
+    passage->operator()().operator()<Write, boost::unique_lock>();    // preform writing over resource, with unique lock over shared_mutex
+
+    // do critical work, ..write to resource
+
+
+
+Last, once all access is finished with, we must unlock the managed mutex, and
+notify the condition-variable at either end.
+
+IMPORTANT:  the *same* lock-type must be specified to unlock the mutex as was
+done to lock it.  In the example throughout, a shared_lock at the client-side,
+and a unique_lock at the server-side.
+
+
+    // Client-side:
+    passage->operator()().operator()<NotifyOne, boost::shared_lock>();
+
+
+    // Server-side:
+    passage->operator()().operator()<NotifyAll, boost::unique_lock>();
+
+
+
+
+[[ TODO ]]
+
+    * Support for timed-gates is pending.
+
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

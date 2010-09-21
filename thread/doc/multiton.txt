@@ -1,0 +1,134 @@
+/////////////////////////////////////////////////////////////////////////////////////////////
+// Copyright (c) 2010 Manfred Doudar, NICTA Ltd.
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+/////////////////////////////////////////////////////////////////////////////////////////////
+
+
+THREAD MULTITON:  generalization of a Singleton, that can be particularly 
+useful for multithreaded code, and managing non-thread aware functions and 
+libraries.
+
+
+API is simple enough, with 2 class template parameters that delineate the
+multiton type, namely the number of singletons the multiton manages, and
+the second, the mutex type that will manage the function call.
+
+
+Being that the intention is to wrap functions, and in the absence of 
+parameter packs for now (variadics), we use the Boost.Preprocessor to 
+accommodate function parameter lists.  Consequently, there is a bound
+on the allowable count of parameters a function can have, ultimately 
+dictated by Boost.PP.  This library by default limits the number of 
+parameters to 11, but this can be overriden by users, with a 
+`-DNICTA_MAX_ARITY N' argument on compilation, where N is the arity.
+
+
+Support exists for all free function types, and member function calls,
+including array forms of new and delete (new[], delete[]), by taging
+calls with the type `array< >'.  Placement-new is also supported.
+
+
+Wrapping a function is easy enough, and involves declaring the type 
+signature, namely Return-type, Object-type, Argument-type(s) in the case
+of member functions; obviously omitting the Object-type for free-functions, 
+and in the case of constructors & destructors, the type of object being 
+destructed should be declared, while constructors additionally place 
+the requirement of delineating Argument-type(s) too.  Finally, the lock-type
+over which to manage the class specified mutex is then stated.
+
+
+
+General Forms:  where I denotes the size of the multiton,
+                where K denotes the kth managed singleton (K < I) used to manage the function call
+
+
+
+
+// Wrapping a free-function:   R foo(arg1, ..., argN);
+
+R r = multiton<I, Mutex-type>::instance<K>()->operator() < R              // Return type
+                                                         , arg1-type
+                                                         , ...
+                                                         , argN-type
+                                                         , Lock-type
+                                                         > (&foo, arg1, ..., argN);
+
+
+
+// Wrapping a member function:    R C::foo(arg1, ..., argN);
+
+R r = multiton<I, Mutex-type>::instance<K>()->operator() < R              // Return type
+                                                         , C              // Class type
+                                                         , arg1-type
+                                                         , ...
+                                                         , argN-type
+                                                         , Lock-type
+                                                         > (&C::foo, C-instance, arg1, ..., argN);
+
+
+
+// Wrapping a call to new:    new C(arg1, ..., argN);
+
+C* c = multiton<I, Mutex-type>::instance<K>()->operator() < C              // Object-type (not return type)!
+                                                          , arg1-type
+                                                          , ...
+                                                          , argN-type
+                                                          , Lock-type
+                                                          > (arg1, ..., argN);
+
+
+// Wrapping a call to new:    new C[n];
+
+C* c = multiton<I, Mutex-type>::instance<K>()->operator() < C              // Object-type (not return type)!
+                                                          , C::size_type
+                                                          , array< >
+                                                          , Lock-type
+                                                          > (n);
+
+
+
+// Wrapping a call to new:    delete c;
+
+multiton<I, Mutex-type>::instance<K>()->operator() < C                     // Underlying object type!
+                                                   , Lock-type
+                                                   > (c);
+
+
+// Wrapping a call to new:    delete[] c;
+
+multiton<I, Mutex-type>::instance<K>()->operator() < C                     // Underlying object type!
+                                                   , array< >
+                                                   , Lock-type
+                                                   > (c);
+
+
+
+// Wrapping a call to placement-new:  new (pool + m * n) C[n];
+
+C*  pool = new C[m * n];
+C** z    = new C* [m];
+for (unsigned int k = 0; k != m; ++k)
+{
+    z[k] = multiton<I, Mutex-type>::instance<K>()->operator() < C          // Object-type (not return type!)
+                                                              , C *        // Type of pool
+                                                              , unsigned int
+                                                              , C::size_type
+                                                              , array< >
+                                                              , Lock-type
+                                                              > (pool, k, n);
+}
+multiton<I, Mutex-type>::instance<K>()->operator() < C *                   // Underlying object type!
+                                                   , array< >
+                                                   , Lock-type
+                                                   > (z);
+multiton<I, Mutex-type>::instance<K>()->operator() < C                     // Underlying object type!
+                                                   , array< >
+                                                   , Lock-type
+                                                   > (pool);
+
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -1,0 +1,1149 @@
+/////////////////////////////////////////////////////////////////////////////////////////////
+// Copyright (c) 2010 Manfred Doudar, NICTA Ltd.
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+/////////////////////////////////////////////////////////////////////////////////////////////
+
+
+MINI NICTA VIDEO LIBRARY HOWTO:  as stated, this is a mini-howto, and not full
+documentation (which for the moment, the API is the best source).
+
+This How-To will be motivated by the unit-test to give an intuitive feel for the
+use of this library.  Advanced usage can be inferred from this document in
+consultation with the library API.
+
+
+The first thing to apprehend is that this video framework models a multi-threaded 
+client-server paradigm using the MVC (Model-View-Controller) pattern.  Consequently, 
+there are three fundamental elements to its composition:
+
+1.  A server - the resource that delivers data from a data source
+
+2.  A client - the sink for data received from a server
+
+3.  A controller - the resource through which server and client communicate to each other
+
+
+If you do not need a multi-threaded context, the framework allows you to omit the 
+controller, and with some minor changes, you can execute code sequentially.
+
+
+
+CURRENT CONSTRAINTS:
+
+By time of this release, the OpenCV creators have since released OpenCV-2.0 and
+OpenCV-2.1.
+
+If we understand correctly, OpenCV-2.1 aims to give OpenCV an object-oriented
+interface - with no major change since OpenCV-2.0 other than that, and possibly
+bug-fixes.
+
+OpenCV-2.0 however, other than some bug-fixes (and purports to fix video-file
+writing that was broken in going from OpenCV-1.0 to OpenCV-1.1-pre1 in Linux),
+actually results in API breakages from OpenCV-1.1-pre1 - very bad.  One day, I
+hope, people in the open-source community realize that you can't just break API
+from one version to the next because you feel like it (in this case, OpenCV
+removes some functions altogether!).
+
+Hence, for the time-being, until I re-engineer OpenCV-2.0 and beyond, use the
+version of OpenCV distributed with these libraries!  This is NOT an advisory note,
+it is a MUST.
+
+The OpenCV distributed here is by and large OpenCV-1.1-pre1, but I have fixed
+the issue of writing video files under Linux, and also and importantly, have fixed
+a few bugs in the matrix routines that deal with multi-dimensional matrices, upon
+which this library and several others in this release depend.
+
+
+In short, build the OpenCV library from the source tar-ball provided in **this**
+distribution!
+
+
+The existing frame work allows for multiple servers and multiple clients, with the 
+current limitation that if connected to the same controller, they must be running with
+the same clock (aka frame-rate).  If you need to connect to a server running with a 
+different clock, connect and configure another controller appropriately.
+
+Both clients and servers can only connect to one controller.  A controller can accept 
+connections to multiple servers and clients.
+
+If users intend to call a client-side "Payload-N"-functor (examples further down), all
+servers connected to the said client *MUST* have a payload of at least N interlaced
+frames.  (Effectively, client-side Payload-N functors ensure that N frames arrive at/
+are needed by the client functor for it to do it's job).  [A Payload-N functor will
+recieve an N-dimensional array of frames in each invocation].
+
+
+Another deliberate design decision for simplicity of implementation and use is that 
+clients and servers connected to the one controller *must* be templated with the
+same class template parameters as that of the controller - these parameters delineate
+the type of image data passing through any of them.  In particular, these are the 
+parameters that indicate Image Pixel Depth, and Color-space of the image data.
+
+
+Finally, the remaining constraint is that the system mimics entity abstractions of
+server, client, and controller in volatile memory.  There is no current provision 
+for separate physical manifestations of each, as this was not an initial requirement
+of product definition and specification.  TCP/IP networking capability may in future
+be added without too much effort as extension - with Boost.ASIO, and Boost.Interprocess
+the motivating technologies suited to solution.
+
+
+NOTES:
+
+*  In the absence of parameter packs (variadics), we use the Boost.Preprocessor to
+   accommodate variable length parameter lists.  Consequently there is a bound on
+   the allowable length, dictated by Boost.PP.  This library default limits all
+   such lists to 11, but can be overriden by users, with a `-DNICTA_MAX_ARITY=N'
+   define on compilation, where N is the arity.
+
+
+*  Owing to a bug in GCC-4.4.2 on 64-bit machines, you will have to define `-Dx86_64'
+   on compilation, if you are on a 64-bit platform.  I cannot say anything about later
+   versions of GCC (and only do a check on GCC-4.4.2), but in some instances, when an
+   `unsigned int' is specified as a template parameter, GCC-4.4.2 on 64-bit machines
+   will error, unless the parameter is appropriately defined as `unsigned long int'
+   instead.  No, I have not filed a bug report with the GCC guys on this (maybe someone
+   else would be kind enough to follow that up)!
+
+
+*  Some cameras it seems, that deliver grayscale only images, and owing to "generic"
+   firmware, opt to deliver grayscale images as 3-channel grayscale, as opposed to
+   the usual 1-channel grayscale.  In such cases, users should define on compilation,
+   the argument `-DNICTA_3CH_GRAYSCALE_CAMERAS' so as to force the stream into a
+   1-channel grayscale stream.
+
+*  If you have access to Point-Gray Research (PGR) Bumblebee cameras, then you can
+   deinterlace and support such image streams through this library, if you define 
+   on compilation, the argument `-DNICTA_PGR'.  You will also need to enlist the
+   aide of the `deinterlace_pointgray' algorithm, and use the camera_device found
+   in vendor/pgr.
+
+
+TODO:
+
+*  Add TCP/IP capabilities, so we can stream images over a network
+   (using Boost.ASIO, and Boost.Interprocess as the motivating technologies).
+
+*  Re-write video_server.h as a factory-class, to accomodate non-generic camera types,
+   and consequently factor-out the PGR camera work into its own parameterization of
+   such a factory.
+
+*  With little effort, single-lens PGR cameras can be accomodated too.
+
+*  More work can be done across { video_server.h, controller.h, video_client.h } to
+   reduce latencies, and needless copying of image frames.
+
+
+
+OVERVIEW:
+
+This document more being a HowTo will not elicit every usage and scenario, but hope
+users can infer such from this document, and the API.
+
+Conceptually, only a few steps need to be taken to get going.
+
+- instantiate a controller object
+
+- instantiate a source - if it is a camera (if a video file, or directory of images - then this is delineated through the server)
+
+- instantiate one or more servers that will connect to the source, through a controller object
+
+- instantiate one or more clients that will connect to one or more servers, through a controller
+
+- thread the controller
+
+- define and instantiate an algorithm (usually for the client end, but can exist at server end too) which will do "work"
+
+- thread all servers, passing through any server-side algorithm instance
+
+- thread all clients, passing through any client-side algorithm instance
+
+- join on client and controller threads
+
+
+NOTE:  if your context is not a multi-threaded one, then you will not instantiate a 
+controller, and nor will you thread or join anything, or connect either server or
+client to a non-extant controller object.
+
+
+We shall run through the unit test as minimally as possible.  It should be observed that
+code is highly generic in nature, and uses rudimentary functional programming paradigms,
+which users should be able to quickly accustom to without difficulty.  The separation of 
+algorithm and implementation allows for rapid prototyping (if that is what is desired)
+and liberates the user from the underlying mechanics of the framework by employing the 
+Strategy pattern.  The only requirement of the user is to write algorithms with 
+client-side (or server-side) conforming interfaces.
+
+
+
+[[ Preliminaries ]]
+
+The classes here are templated on pixel depth, and color space; the three predominant
+ones are:  video_server ; video_client ; controller:
+
+    namespace nicta {
+    namespace vibe {
+    namespace video {
+
+        template < typename Depth = nicta::vibe::image::depth_8u                              // defaults to 8-bit unsigned
+                 , template <typename> class Pixel = nicta::vibe::image::bgr_p                // defaults to BGR
+                 >
+        class video_server;
+
+
+        template < typename Depth = nicta::vibe::image::depth_8u                              // defaults to 8-bit unsigned
+                 , template <typename> class Pixel = nicta::vibe::image::bgr_p                // defaults to BGR
+                 >
+        class video_client;
+
+
+        template < typename Depth = nicta::vibe::image::depth_8u                              // defaults to 8-bit unsigned
+                 , template <typename> class Pixel = nicta::vibe::image::bgr_p                // defaults to BGR
+                 >
+        class controller;
+
+    } } } // namespace nicta::vibe::video
+
+
+
+-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+USAGE:   Multi-threaded Contexts..
+-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+
+
+
+1. [[ Instantiate a controller object ]]
+
+
+    * Default Controller Setup:
+
+         controller< > ctrl;        // with default template params for pixel-depth & color-space, and frame rate as is default for source
+
+
+
+    * Alternate Controller Setup:
+
+         controller< > ctrl(frame_rate_per_second<unsigned int>(25));        // ... with source running at fps = 25
+
+
+
+2. [[ Declare or Instantiate an image source ]]
+
+
+    * Camera:
+
+         camera_device< > src;      // with default template params for pixel-depth & color-space
+
+    
+    * Video-File:
+
+         const char* src = "input.avi";
+
+
+    * Directory-of-Images:
+
+         const char* src = "/dir/to/images/sequences";
+
+         const char* src_type = "*.jpeg, *.jpg, *.JPG";
+
+
+
+
+3. [[ Instantiate one or more servers ]]
+
+
+    * Camera source:
+
+        video_server< > server(&ctrl,                                                  // the controller to connect to
+                               src,                                                    // the camera source of images
+                               "server_name");                                         // the *unique* string identifier for this server instance
+
+
+
+    * Video-File source:
+
+         video_server< > server(&ctrl,                                                 // the controller to connect to
+                                src,                                                   // the source of images
+                                "server_name",                                         // the *unique* string identifier for this server instance
+                                boost::posix_time::seconds(3));                        // initiate reading 3 seconds into the beginning of the file
+
+
+
+         video_server< > server(&ctrl,                                                 // the controller to connect to
+                                src,                                                   // the source of images
+                                "server_name",                                         // the *unique* string identifier for this server instance
+                                frames<unsigned long int>(3));                         // initiate reading 3 frames from the beginning of the file
+
+ 
+
+         video_server< > server(&ctrl,                                                 // the controller to connect to
+                                src,                                                   // the source of images
+                                "server_name",                                         // the *unique* string identifier for this server instance
+                                ratio<double>(0.5));                                   // initiate reading half way into the beginning of the file
+
+
+
+    * Directory-of-Images source:
+
+         video_server< > server(&ctrl,                                                 // the controller to connect to
+                                src,                                                   // the directory source for images
+                                src_type,                                              // the image extension type(s)
+                                "server_name",                                         // the *unique* string identifier for this server instance
+                                frame_rate_per_second<unsigned int>(25));              // frame rate to deliver images
+
+
+
+
+4. [[ Instantiate one or more clients ]]
+
+
+    * Connecting up to one server:
+
+         video_client< > client(&ctrl,                                                 // the controller to connect to
+                                &server,                                               // the server to connect to
+                                "client_name",                                         // the *unique* string identifier for this client instance
+                                step<unsigned long int>(3),                            // every 3rd frame from server will be sent to client
+                                signed_frame_buffer_capacity<long int>(0),             // buffer all frames from server (drop no frames)
+                                "ENTER_L",                                             // listen for a left-Enter key to kill any window of this client
+                                fraction<double>(0.99));                               // synch control: fraction of controller period to sleep for
+
+
+
+    * Connecting up to more than one server:
+
+         video_client< > client(&ctrl,                                                 // the controller to connect to
+                                &server_1,                                             // the server(s) to connect to
+                                ...,                                                   // ...
+                                &server_N,                                             // ...
+                                "client_name",                                         // the *unique* string identifier for this client instance
+                                step<unsigned long int>(3),                            // every 3rd frame from server will be sent to client
+                                signed_frame_buffer_capacity<long int>(10),            // if buffer-size > 10, drop oldest frame
+                                "SILENT_KEYS",                                         // will not listen for any key-presses for windows of this client
+                                fraction<double>(0.99));                               // synch control: fraction of controller period to sleep for
+
+
+
+
+5. [[ Thread the controller ]]
+
+
+    boost::thread ctrl_thread(boost::ref(ctrl));                                       // the controller instance passed through to be held as a reference!
+
+
+
+6a. [[ Thread the server - no algorithm ]]
+
+
+    boost::thread server_thread(boost::ref(server));                                   // the server instance passed through to be held as a reference!
+
+
+
+6b. [[ Instantiate server-side algorithm & Thread the server ]]
+
+
+    * Instantiate a server-side algorithm:
+
+         canonical_identity sftor;                                                     // the "do nothing" server-side algorithm
+
+
+    * Thread the server, with algorithm:
+
+         boost::thread
+         server_thread(boost::bind(&video_server< >::operator<canonical_identity>,     // the video-server callable operator instantiated on algorithm type
+                                   boost::ref(server),                                 // the server instance (passed through to be held as a reference!)
+                                   boost::ref(sftor)));                                // the algorithm (passed through to be held as a reference!)
+
+
+
+6c. [[ Instantiate server-side algorithm, Instantiate a server-side deinterlacing algorithm & Thread the server ]]
+
+
+    *  Instantiate a server-side algorithm:
+
+         canonical_identity sftor;                                                     // the "do nothing" server-side algorithm
+
+
+    *  Instantiate a server-side deinterlacing algorithm:
+
+         deinterlace_identity dftor;                                                   // the "do nothing" server-side deinterlacing algorithm
+
+
+    * Thread the server, with the two algorithms:
+
+         boost::thread
+         server_thread(boost::bind(&video_server< >::operator< canonical_identity      // the video-server callable operator instantiated on algorithm types
+                                                             , 1U                      // number of images to deinterlace from source [ =1 -> nothing todo ]
+                                                             , deinterlace_identity
+                                                             >
+                                   boost::ref(server),                                 // the server instance (passed through to be held as a reference!)
+                                   boost::ref(sftor)                                   // the algorithm (passed through to be held as a reference!)
+                                   boost::ref(dftor)));                                // the d-algorithm (passed through to be held as a reference!)
+
+
+
+
+7. [[ Instantiate client-side alogrithm & Thread the client ]]
+
+
+    * Instantiate a client-side algorithm:
+
+         play_stream cftor;
+
+
+
+
+    * Thread the client, with algorithm:
+
+
+         boost::thread
+         client_thread(boost::bind(&video_client< >::operator()<play_stream>,          // the video-client callable operator instantiated on algorithm type
+                                   boost::ref(client),                                 // the client instance (pass through to be held as a reference!)
+                                   boost::ref(cftor)));                                // the algorithm (passed through to be held as a reference!)
+
+
+
+
+     * Thread the client, with algorithm and initiate "work" when image timestamp >= 'start'
+
+
+         boost::posix_time::ptime now = boost::posix_time::microsec_clock::local_time();    // time now (with micro-second accuracy)
+
+         boost::thread
+         client_thread(boost::bind(&video_client< >::operator()<play_stream>,          // the video-client callable operator instantiated on algorithm type
+                                   boost::ref(client),                                 // the client instance (pass through to be held as a reference!)
+                                   now + boost::posix_time::seconds(3),                // start = on first image with timestamp >= now + 3 seconds
+                                   boost::ref(cftor)));                                // the algorithm (passed through to be held as a reference!)
+
+
+
+     * Thread the client, with algorithm and initiate "work" when image timestamp >= 'start + incr * N' ; N = { 0, 1, 2, ... }
+
+
+         boost::posix_time::ptime now = boost::posix_time::microsec_clock::local_time();    // time now (with micro-second accuracy)
+
+         boost::thread
+         client_thread(boost::bind(&video_client< >::operator()<play_stream>,          // the video-client callable operator instantiated on algorithm type
+                                   boost::ref(client),                                 // the client instance (pass through to be held as a reference!)
+                                   now + boost::posix_time::seconds(3),                // start = on first image with timestamp >= now + 3 seconds
+                                   boost::posix_time::seconds(0),                      // incr = no increment.. hence accept every image after 'start'
+                                   boost::ref(cftor)));                                // the algorithm (passed through to be held as a reference!)
+
+
+
+     * Thread the client, with algorithm and initiate "work" when image timestamp >= 'start + incr * N' ; N = { 0, 1, 2, ... }
+        ...with timing running off a user specified connected server
+
+
+         boost::posix_time::ptime now = boost::posix_time::microsec_clock::local_time();    // time now (with micro-second accuracy)
+
+         boost::thread
+         client_thread(boost::bind(&video_client< >::operator()<play_stream>,          // the video-client callable operator instantiated on algorithm type
+                                   boost::ref(client),                                 // the client instance (pass through to be held as a reference!)
+                                   boost::ref(server_3),                               // the server against which to synchronize timings 'start + incr * N'
+                                   now + boost::posix_time::seconds(3),                // start = on first image with timestamp >= now + 3 seconds
+                                   boost::posix_time::seconds(0),                      // incr = no increment.. hence accept every image after 'start'
+                                   boost::ref(cftor)));                                // the algorithm (passed through to be held as a reference!)
+
+
+
+     * Thread a client, invoking a Payload-N functor (simple example)
+
+
+         MyAlgorithm algo;
+
+         boost::thread
+         client_thread(boost::bind(&video_client< >::operator()<N, MyAlgorithm>,       // the callable operator instantiated on algorithm type and N
+                                   boost::ref(client),                                 // the client instance (pass through to be held as a reference!)
+                                   boost::ref(algo)));                                 // the algorithm (passed through to be held as a reference!)
+
+
+         NOTES:  here, N is an unsigned integer that denotes the number of deinterlaced frames
+         we want to receive from the server.  Constraints:  [ N > 0 ;  N <= server-payload ]
+         Consequently, all servers connected to this client instance must be able to deliver at
+         least N deinterlaced frames at any one time.
+
+         CAUTION:  threading a client with a Payload-N functor will terminate the program if
+         the value for N is greater than the server-payload!
+
+
+
+
+8. [[ Join on client & controller threads ]]
+
+
+    * Wait for threads to terminate:
+
+         client_thread.join();
+         ctrl_thread.join();
+
+
+
+
+
+
+-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+USAGE:   Non-threaded Contexts..
+-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+
+
+
+1. [[ Declare or Instantiate an image source ]]
+
+
+    * Camera:
+
+         camera_device< > src;      // with default template params for pixel-depth & color-space
+
+    
+    * Video-File:
+
+         const char* src = "input.avi";
+
+
+    * Directory-of-Images:
+
+         const char* src = "/dir/to/images/sequences";
+
+         const char* src_type = "*.jpeg, *.jpg, *.JPG";
+
+
+
+
+2. [[ Instantiate one or more servers ]]
+
+
+    * Camera source:
+
+        video_server< > server(src,                                                    // the camera source of images
+                               "server_name");                                         // the *unique* string identifier for this server instance
+
+
+
+    * Video-File source:
+
+         video_server< > server(src,                                                   // the source of images
+                                "server_name",                                         // the *unique* string identifier for this server instance
+                                boost::posix_time::seconds(3));                        // initiate reading 3 seconds into the beginning of the file
+
+
+
+         video_server< > server(src,                                                   // the source of images
+                                "server_name",                                         // the *unique* string identifier for this server instance
+                                frames<unsigned long int>(3));                         // initiate reading 3 frames from the beginning of the file
+
+ 
+
+         video_server< > server(src,                                                   // the source of images
+                                "server_name",                                         // the *unique* string identifier for this server instance
+                                ratio<double>(0.5));                                   // initiate reading half way into the beginning of the file
+
+
+
+    * Directory-of-Images source:
+
+         video_server< > server(src,                                                   // the directory source for images
+                                src_type,                                              // the image extension type(s)
+                                "server_name",                                         // the *unique* string identifier for this server instance
+                                frame_rate_per_second<unsigned int>(25));              // frame rate to deliver images
+
+
+
+
+3. [[ Instantiate one or more clients ]]
+
+
+    * Connecting up to one (and only one) server:
+
+         video_client< > client(&server,                                               // the server to connect to
+                                "client_name",                                         // the *unique* string identifier for this client instance
+                                step<unsigned long int>(3),                            // every 3rd frame from server will be sent to client
+                                signed_frame_buffer_capacity<long int>(0),             // buffer all frames from server (drop no frames)
+                                "ENTER_L",                                             // listen for a left-Enter key to kill any window of this client
+                                fraction<double>(0));                                  // synch control: fraction of controller period to sleep for
+
+
+
+         video_client< > client(&server,                                               // the server to connect to
+                                "client_name",                                         // the *unique* string identifier for this client instance
+                                step<unsigned long int>(3),                            // every 3rd frame from server will be sent to client
+                                signed_frame_buffer_capacity<long int>(-9),            // buffer upto 9 frames, then buffer no more, until those frames 9 are consumed
+                                "ENTER_L",                                             // listen for a left-Enter key to kill any window of this client
+                                fraction<double>(0));                                  // synch control: fraction of controller period to sleep for
+
+
+
+
+4. [[ Instantiate client-side alogrithm ]]
+
+
+    * Instantiate a client-side algorithm:
+
+         play_stream cftor;
+
+
+
+
+5. [[ Invoke the algorithm (run it!) ]]
+
+
+
+
+    * Invoke the algorithm:
+
+
+         client(cftor);                                                                // the algorithm is passed through and exectued over the input stream
+
+
+
+     * Invoke the algorithm and initiate "work" when image timestamp >= 'start'
+
+
+         boost::posix_time::ptime now = boost::posix_time::microsec_clock::local_time();    // time now (with micro-second accuracy)
+
+         client(now + boost::posix_time::seconds(3),                                   // start = on first image with timestamp >= now + 3 seconds
+                cftor);                                                                // the algorithm is passed through and exectued over the input stream
+
+
+
+     * Invoke the client, with algorithm and initiate "work" when image timestamp >= 'start + incr * N' ; N = { 0, 1, 2, ... }
+
+
+         boost::posix_time::ptime now = boost::posix_time::microsec_clock::local_time();    // time now (with micro-second accuracy)
+
+         client(now + boost::posix_time::seconds(3),                                   // start = on first image with timestamp >= now + 3 seconds
+                boost::posix_time::seconds(0),                                         // incr = no increment.. hence accept every image after 'start'
+                cftor);                                                                // the algorithm is passed through and exectued over the input stream
+
+
+
+     * Invoking the client with a Payload-N functor (simple example)
+
+
+         MyAlgorithm algo;
+
+         client<N>(algo);                                                              // the callable operator instantiated on algorithm type and N
+
+                           --OR-- (more explicitly):
+
+         client<N, MyAlgorithm>(algo);                                                 // the callable operator instantiated on algorithm type and N
+
+
+         NOTES:  here, N is an unsigned integer that denotes the number of deinterlaced frames
+         we want to receive from the server.  Constraints:  [ N > 0 ;  N <= server-payload ]
+         Consequently, all servers connected to this client instance must be able to deliver at
+         least N deinterlaced frames at any one time.
+
+         CAUTION:  threading a client with a Payload-N functor will terminate the program if
+         the value for N is greater than the server-payload!
+
+
+
+
+
+6. [[ ..What about server-side algorithms in a non-threaded context?? ]]
+
+
+    * Server-side algorithms can now be run in non-threaded contexts, by passing these algorithms
+      to the callable operator on the client side.  Some examples follow:
+
+
+         --Invoking the client with single-stream server source:
+
+              ClientSideAlgorithm c_algo;
+              ServerSideAlgorithm s_algo;
+
+              client(c_algo, s_algo);                                                  // the callable operator
+
+
+         --Invoking the client with a client-side Payload-N functor
+
+              ClientSideAlgorithm c_algo;
+              ServerSideAlgorithm s_algo;
+
+              client< N                                                                // sends through N frames to client-side-algorithm at a time
+                    , ClientSideAlgorithm
+                    , ServerSideAlgorithm
+                    >(c_algo, s_algo);                                                 // the callable operator
+
+
+         --Invoking the client with a server-side Payload-K functor (hence deinterlacing)
+
+              ClientSideAlgorithm c_algo;
+              ServerSideAlgorithm s_algo;
+              ServerSideDeinterlaceAlgorithm d_algo;
+
+              client< ClientSideAlgorithm
+                    , ServerSideAlgorithm
+                    , K                                                                // is a count of K frames that are to be deinterlaced
+                    , ServerSideDeinterlaceAlgorithm
+                    >(c_algo, s_algo, d_algo);                                         // the callable operator
+
+
+         --Invoking the client with a client-side Payload-N functor, and server-side Payload-K functor (hence deinterlacing)
+
+              ClientSideAlgorithm c_algo;
+              ServerSideAlgorithm s_algo;
+              ServerSideDeinterlaceAlgorithm d_algo;
+
+              client< N                                                                // sends through N frames to client-side-algorithm at a time
+                    , ClientSideAlgorithm
+                    , ServerSideAlgorithm
+                    , K                                                                // is a count of K frames that are to be deinterlaced
+                    , ServerSideDeinterlaceAlgorithm
+                    >(c_algo, s_algo, d_algo);                                         // the callable operator
+
+
+
+
+
+
+-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+SERVER- & CLIENT- SIDE ALGORITHMS
+-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+
+
+Users can use just as easily use and instantiate the few client- & server- side 
+algorithms provided or simply write their own; as purpose and need dictates.  Hence
+envisage the proliferation of user written algorithm libraries.
+
+At time of writing, the existing video library provides a few convenience algorithms,
+namely:
+
+    * canonical_identity       // the do nothing algorithm (with both server- and client- side versions available)
+
+    * deinterlace_identity     // the do nothing algorithm for deinterlacing server-side sources
+
+    * play_stream              // client-side algorithm:  shows incoming images in a window on the screen
+
+    * record_stream            // client-side algorithm:  writes incoming images to file
+
+    * click_stream             // client-side algorithm:  returns mouse-coordinates in image coordinates on a mouse click
+
+    * face_detect              // client-side algorithm:  detects faces in incoming images (adapted from the O'Reilly OpenCV book)
+
+    * deinterlace_pointgray    // server-side algorithm:  for deinterlacing PointGray (Bumblebee) Stereo images
+
+    * gray_streamable          // client-side algorithm:  to convert an image stream to grayscale, and faciliate algorithm-chaining
+
+
+Writing a library-conforming algorithm is only a matter of users writing their own
+function objects using a strict signature.  The function signature however differs
+for both client- and server- side algorithms.
+
+
+
+[[ Server-side Conforming Algorithm ]]
+
+
+    * Server-side algorithms must conform to the following signature:
+
+         boost::shared_ptr< ::IplImage > operator()(::IplImage* frame) const throw ();
+
+
+
+      where:
+
+      - parameter 'frame':  input image
+      - return value:       the modified image (that will be delivered to clients)
+
+
+
+[[ Server-side Conforming Deinterlacing Algorithm ]]
+
+
+    * Server-side deinterlacing algorithms *SHOULD* _PUBLICALLY inherit_ from algorithm:  nicta::vibe::video::algorithm::deinterlace_identity<N>
+
+    * Server-side deinterlacing algorithms *MUST* conform to the following signature:
+
+         my_algorithm_class_type &
+         operator()(::IplImage* frame) throw ();
+
+
+
+      where:
+
+      - parameter frame:         input image
+      - template parameter 'N':  the count of interlaced frames at the source
+      - return value:            non-const reference to 'this' pointer  [ a derived class of:  nicta::vibe::video::algorithm::deinterlace_identity<N> ]
+
+
+    * Server-side deinterlacing algorithms *MUST* call the base-class method:
+
+         nicta::vibe::video::algorithm::deinterlace_identity<N>::push_back(const boost::shared_ptr< ::IplImage > &);
+
+      to insert deinterlaced frames for the video-server to consequently find [of type:  boost::shared_ptr< ::IplImage >& ].
+
+
+    * Server-side deinterlacing algorithms *MUST* return a non-const reference to 'this' pointer;
+      which is a derived class of deinterlace_identity<N> (noting that the user has inherited from
+      this algorithm as a base-class).
+
+
+NOTE:  if there is no interlacing present at the source, deinterlace_identity<1>
+algorithm will automatically substitute itself in-place.
+
+
+
+[[ Client-side Conforming Algorithm ]]
+
+
+    * Client-side algorithms must conform to the following signature:
+
+
+         template < typename Depth
+                  , template <typename> class Pixel
+                  , template <typename, template <typename> class> class C
+                  >
+         bool
+         operator()([const] nicta::vibe::image::image<Depth, Pixel>& frame,    // the image received from the source server, NOTE:  optional `const'
+                    boost::posix_time::ptime timestamp,                        // the timestamp at which 'frame' was captured at source server
+                    unsigned long int frame_index,                             // zero-indexed frame index count from source server (0 for all cameras)
+                    unsigned int payload_index,                                // zero-indexed payload index in deinterlaced contexts (0 otherwise)
+                    unsigned int payload,                                      // count of interlaced frames at source (1 if no interlacing present)
+                    const std::string& source_id,                              // the *unique* string identifier delineating source server for 'frame'
+                    const std::string& host_id,                                // the *unique* string identifier for the client instance
+                    unsigned int host_connections,                             // the number of servers the client is connected to
+                    std::set<std::string>& window_tags,                        // the set of tags to decorate window title-bars
+                    void (C<Depth, Pixel>::*shutdown)() const throw (),        // function pointer to video_client method to force client shutdown
+                    const C<Depth, Pixel>* const host                          // pointer to video_client object, so can call video_client methods
+                   ) [const] throw ();                                         // NOTE:  optional `const'
+
+
+
+      where:
+
+      - return value:  for power users - used to determine if whether we have signalled death of client by closing the window
+                       ... if 'no', then return 'true'
+                       ... if 'yes', then return 'false'
+
+
+
+
+[[ Client-side Payload-N Conforming Algorithm ]]
+
+
+    * Client-side algorithms must conform to the following signature:
+
+
+         template < unsigned int N
+                  , typename Depth
+                  , template <typename> class Pixel
+                  , template <typename, template <typename> class> class C
+                  >
+         bool
+         operator()([const] boost::array<boost::shared_ptr<nicta::vibe::image::image<Depth, Pixel> >, N>& frames,
+                                                                               // the N-image payload from the source server, NOTE:  optional `const'
+                    boost::posix_time::ptime timestamp,                        // the timestamp at which 'frame' was captured at source server
+                    unsigned long int frame_index,                             // zero-indexed frame index count from source server (0 for all cameras)
+                    boost::array<unsigned int, N>& payload_index,              // zero-indexed payload indices in deinterlaced contexts (0 otherwise)
+                    unsigned int payload,                                      // count of interlaced frames at source (1 if no interlacing present)
+                    const std::string& source_id,                              // the *unique* string identifier delineating source server for 'frame'
+                    const std::string& host_id,                                // the *unique* string identifier for the client instance
+                    unsigned int host_connections,                             // the number of servers the client is connected to
+                    std::set<std::string>& window_tags,                        // the set of tags to decorate window title-bars
+                    void (C<Depth, Pixel>::*shutdown)() const throw (),        // function pointer to video_client method to force client shutdown
+                    const C<Depth, Pixel>* const host                          // pointer to video_client object, so can call video_client methods
+                   ) [const] throw ();                                         // NOTE:  optional `const'
+
+
+
+      where:
+
+      - return value:  for power users - used to determine if whether we have signalled death of client by closing the window
+                       ... if 'no', then return 'true'
+                       ... if 'yes', then return 'false'
+
+
+
+
+
+
+-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+PIPE-STREAMS:  chaining algorithms
+-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+
+
+It is often convenient to be able to feed the output of one algorithm as the input
+of another, much akin to how POSIX pipes might do on a Unix-like command-line; this
+is facilitate by `pipe-streaming' otherwise called 'algorithm-chaining'.
+
+NOTE:  pipe-streams are only available as a client-side technology.
+
+
+To be able to chain algorithms, the user needs to write a streamable-conforming
+adaptor around their algorithms, the requirements of which we detail below.
+
+A special-case of a streamable-conforming wrapper is one that adapts a stream to a
+grayscale stream.  While by-and-large the grayscale-stream adaptor is a recipe for 
+writing your own streamble-conforming adaptors, you **should** follow the guidelines
+presented in this document.
+
+
+STEP 1:  [[ Writing conforming pipe-stream algorithms ]]:
+________________________________________________________
+
+
+[1a].  Your algorithm class should publically define a nested type, called result_type, which
+       should be a shared_ptr to the image-type returned on execution of the said algorithm,
+       like so:
+
+           typedef boost::shared_ptr<nicta::vibe::image::image<D, P> > result_type;
+
+       where D and P are the template parameters associated with the returned image;
+       in the case of a grayscale algorithm, the pixel type would, without question be:
+
+           nicta::vibe::image::gray_p
+
+
+[1b].  Owing to the underlying boost::variant mechanism that facilitates pipe-streaming,
+       you must provide two variants of each constructor for your algorithm:
+
+           Algorithm(boost::shared_ptr<[const] nicta::vibe::image::image<D, P> > source [, ...]);    // const qualification depends upon your algorithm
+
+       and,
+
+           template <typename F>
+           Algorithm(F&& source [, ...]);
+
+
+[1c].  One (or more) function-call operator that will return a result of type result_type;
+
+           boost::shared_ptr<nicta::vibe::image::image<D, P> >
+
+
+[1d].  Your algorithm class will be templated on Depth, and Pixel (a template template parameter):
+
+           template < typename Depth
+                    , template <typename> class Pixel
+                    >
+           class Algorithm;
+
+
+
+STEP 2:  [[ Writing conforming pipe-stream adaptors (aka streamables) ]]:
+________________________________________________________________________
+
+Now you need to facilitate client-side conforming algorithms, in four easy steps..
+
+
+[2a].  Your streamable adaptor should publically inherit itself via CRTP, via the pipe::visitable
+       base class:
+
+           template < typename Depth
+                    , template <typename> Pixel
+                    >
+           class Streamable : public nicta::vibe::video::algorithm::pipe::visitable<Streamable>
+                            , private boost::non_copyable
+           {
+               // ...
+           };
+
+
+[2b].  Your streamable adaptor class should publically define a nested type, called base_type, which
+       should be the underlying type of your streamable's algorithm; in the case of STEP 1 above, this
+       would be Algorithm:
+
+           typedef Algorithm<Depth, Pixel> base_type;
+
+
+[2c].  You will need to define the following 4 callable operators, 2 of which are variants of the
+       other two, owing to the underlying boost::variant mechanism that facilitates pipe-streaming;
+       where for each pair one returns base_type::result_type (the resulting image), and the other
+       bool, which facilitates end of algorithm chaining, and optionally display of image to screen
+       (terminating algorithm chaining) -- both parallel the interface of video library client-side
+       algorithms:
+
+
+            // facilitates algorithm-chaining:
+
+            template < typename Depth
+                     , template <typename> class Pixel
+                     , template <typename, template <typename> class> class C
+                     >
+            typename Streamable<Depth, Pixel>::base_type::result_type
+            operator()([const] nicta::vibe::image::image<Depth, Pixel>& frame,    // the image received from the source server, NOTE:  optional `const'
+                       boost::posix_time::ptime timestamp,                        // the timestamp at which 'frame' was captured at source server
+                       unsigned long int frame_index,                             // zero-indexed frame index count from source server (0 for all cameras)
+                       unsigned int payload_index,                                // zero-indexed payload index in deinterlaced contexts (0 otherwise)
+                       unsigned int payload,                                      // count of interlaced frames at source (1 if no interlacing present)
+                       const std::string& source_id,                              // the *unique* string identifier delineating source server for 'frame'
+                       const std::string& host_id,                                // the *unique* string identifier for the client instance
+                       unsigned int host_connections,                             // the number of servers the client is connected to
+                       std::set<std::string>& window_tags,                        // the set of tags to decorate window title-bars
+                       void (C<Depth, Pixel>::*shutdown)() const throw (),        // function pointer to video_client method to force client shutdown
+                       const C<Depth, Pixel>* const host);                        // pointer to video_client object, so can call video_client methods
+
+
+
+            // facilitates (optional) display to screen, terminating algorithm-chaining:
+
+            template < typename Depth
+                     , template <typename> class Pixel
+                     , template <typename, template <typename> class> class C
+                     >
+            bool
+            operator()([const] nicta::vibe::image::image<Depth, Pixel>& frame,    // the image received from the source server, NOTE:  optional `const'
+                       boost::posix_time::ptime timestamp,                        // the timestamp at which 'frame' was captured at source server
+                       unsigned long int frame_index,                             // zero-indexed frame index count from source server (0 for all cameras)
+                       unsigned int payload_index,                                // zero-indexed payload index in deinterlaced contexts (0 otherwise)
+                       unsigned int payload,                                      // count of interlaced frames at source (1 if no interlacing present)
+                       const std::string& source_id,                              // the *unique* string identifier delineating source server for 'frame'
+                       const std::string& host_id,                                // the *unique* string identifier for the client instance
+                       unsigned int host_connections,                             // the number of servers the client is connected to
+                       std::set<std::string>& window_tags,                        // the set of tags to decorate window title-bars
+                       void (C<Depth, Pixel>::*shutdown)() const throw (),        // function pointer to video_client method to force client shutdown
+                       const C<Depth, Pixel>* const host,                         // pointer to video_client object, so can call video_client methods
+                       nicta::vibe::video::algorithm::pipe::display_tag&& tag);   // tag in lieu of which would cause overload ambiguity with the prior callable signature
+
+
+
+       and,
+
+
+            // facilitates algorithm-chaining:
+
+            template < typename F
+                     , typename C
+                     >
+            typename Streamable<Depth, Pixel>::base_type::result_type
+            operator()(F&& frame,                                                 // the image received from the source server
+                       boost::posix_time::ptime timestamp,                        // the timestamp at which 'frame' was captured at source server
+                       unsigned long int frame_index,                             // zero-indexed frame index count from source server (0 for all cameras)
+                       unsigned int payload_index,                                // zero-indexed payload index in deinterlaced contexts (0 otherwise)
+                       unsigned int payload,                                      // count of interlaced frames at source (1 if no interlacing present)
+                       const std::string& source_id,                              // the *unique* string identifier delineating source server for 'frame'
+                       const std::string& host_id,                                // the *unique* string identifier for the client instance
+                       unsigned int host_connections,                             // the number of servers the client is connected to
+                       std::set<std::string>& window_tags,                        // the set of tags to decorate window title-bars
+                       void (C::*shutdown)() const throw (),                      // function pointer to video_client method to force client shutdown
+                       const C* const host);                                      // pointer to video_client object, so can call video_client methods
+
+
+
+          // facilitates (optional) display to screen, terminating algorithm-chaining:
+
+          template < typename F
+                   , typename C
+                   >
+          bool
+          operator()(F&& frame,                                                 // the image received from the source server
+                     boost::posix_time::ptime timestamp,                        // the timestamp at which 'frame' was captured at source server
+                     unsigned long int frame_index,                             // zero-indexed frame index count from source server (0 for all cameras)
+                     unsigned int payload_index,                                // zero-indexed payload index in deinterlaced contexts (0 otherwise)
+                     unsigned int payload,                                      // count of interlaced frames at source (1 if no interlacing present)
+                     const std::string& source_id,                              // the *unique* string identifier delineating source server for 'frame'
+                     const std::string& host_id,                                // the *unique* string identifier for the client instance
+                     unsigned int host_connections,                             // the number of servers the client is connected to
+                     std::set<std::string>& window_tags,                        // the set of tags to decorate window title-bars
+                     void (C::*shutdown)() const throw (),                      // function pointer to video_client method to force client shutdown
+                     const C* const host);                                      // pointer to video_client object, so can call video_client methods
+                     nicta::vibe::video::algorithm::pipe::display_tag&& tag);   // tag in lieu of which would cause overload ambiguity with the prior callable signature
+
+
+
+[2d].  Your streamable adaptor class will be templated on Depth, and Pixel (a template template parameter):
+
+           template < typename Depth
+                    , template <typename> class Pixel
+                    >
+           class Streamable;
+
+
+
+STEP 3:  [[ Chaining Your Algorithms ]]:
+_______________________________________
+
+You've now written your algorithms, and your streamables (algorithm adaptors); you
+now need to chain them to form a pipe-stream, and pass the pipe as the argument to
+your client-side callable operator - and you're done.
+
+
+[3a].  Define a sequence-container of boost::variant streamable pointers, like so:
+
+           std::vector< boost::variant< nicta::vibe::video::algorithm::pipe::visitable< Streamable_1 > *
+                                      , nicta::vibe::video::algorithm::pipe::visitable< Streamable_2 > *
+                                      , ...
+                                      , nicta::vibe::video::algorithm::pipe::visitable< Streamable_N > *
+                                      >
+                      > algo_stream;
+
+
+       * TAKE NOTE:  you should list Streamables in **exactly** the order in which you want them to be applied,
+         including repeats of Streamables.
+
+
+[3b].  Construct your streamables, and push back on your sequence container:
+
+           Streamable_1 s1;
+           Streamable_2 s2;
+           ...
+           Streamable_N sN;
+
+           algo_stream.push_back(&s1);
+           algo_stream.push_back(&s2);
+           ...
+           algo_stream.push_back(&sN);
+
+
+[3c].  Create an N-ary pipe-stream, where N is the number of streamables in your sequence container:
+
+           nicta::vibe::video::algorithm::pipe::pipe_streamN< Depth_1                                                    // the pixel depth of the source
+                                                            , Pixel_1                                                    // the color space of the source
+                                                            , Streamable_1<Depth_1, Pixel_1>::base_type::result_type     // resultant image type after applying the 1st streamable
+                                                            , nicta::vibe::algorithm::pipe::visitable< Streamable_1 >    // the 1st visitable for streamable algorithm 1
+                                                            , Depth_2                                                    // the pixel depth of incoming image, post Streamable_1
+                                                            , Pixel_2                                                    // the color space of incoming image, post Streamable_1
+                                                            , Streamable_2<Depth_2, Pixel_2>::base_type::result_type     // resultant image type after applying the 2nd streamable
+                                                            , nicta::vibe::algorithm::pipe::visitable< Streamable_2 >    // the 2nd visitable for streamable algorithm 2
+                                                            , ...                                                        // ...
+                                                            , Depth_N                                                    // the pixel depth of incoming image, post Streamable_N-1
+                                                            , Pixel_N                                                    // the color space of incoming image, post Streamable_N-1
+                                                            , nicta::vibe::video::algorithm::pipe::display_tag::type     // in effect, terminates the pipe
+                                                            , nicta::vibe::algorithm::pipe::visitable< Streamable_N >    // the Nth visitable for streamable algorithm N
+                                                            , nicta::vibe::video::algorithm::pipe::visitor               // is the visitor used to visit streamables in algo_stream
+                                                            , std::vector                                                // is the sequence container type of algo_stream
+                                                            > pipe(std::move(algo_stream));
+
+
+       * TAKE NOTE:  if `N' were 5, then we would write:
+
+            nicta::vibe::video::algorithm::pipe::pipe_stream5< ... > pipe(std::move(algo_stream));
+
+
+       * TAKE NOTE:  nicta::vibe::algorithm::pipe::display_tag::type  is a synonym for `bool'
+
+
+[3d].  Set up source, server, client (and if need be, a controller object and then thread):
+
+           camera_device< > camera;
+           video_server< > server(camera, "server");
+           video_client< > client(&server, "client");
+
+
+[3e].  Pass the pipe as argument to the client callable operator get things going:
+
+           client(pipe);
+
+
+
+NOTE:  creating N-ary pipe-streams has limitations owing to boost::variant; `N' can
+be no greater than `BOOST_VARIANT_LIMIT_TYPES - 1'.  This limitation can be overcome
+by defining a sequence container of:  boost::make_variant_over<mpl-sequence>::type
+instead (see [3a].), and removing static-asserts in code tied to checks on
+`BOOST_VARIANT_LIMIT_TYPES' (see pipe_apply.h, and pipe_stream.h); but don't envisage
+such use case (I doubt anyone would need to chain 20 or more algorithms together).
+
+NOTE:  to reach the upper bound of N-ary pipe-streams of `BOOST_VARIANT_LIMIT_TYPES - 1',
+the compile-time value for define NICTA_PIPE_ARITY must be appropriately set.  This by
+default is 11, but can be overriden by users with a `-DNICTA_PIPE_ARITY=N' argument on 
+compilation, where N is the desired count of algorithms sought to chain.
+
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+

@@ -1,0 +1,83 @@
+/////////////////////////////////////////////////////////////////////////////////////////////
+// Copyright (c) 2010 Manfred Doudar, NICTA Ltd.
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+/////////////////////////////////////////////////////////////////////////////////////////////
+
+
+THREAD RW-CONDITION-WAITER: is functionally the equivalent of a read-write gate,
+without the multiton interface, and the documentation reflects this.
+
+
+A single template parameter defines a rw_condition_wait object:  the type of
+mutex that the underlying locks wrap - there is no default, but given the 
+intended read-write nature of the class, this will usually be a shared_mutex
+variant.
+
+
+    // a convenience
+    typedef rw_condition_wait<boost::shared_mutex> waiter;
+
+
+
+    // a condition variable, managing a shared_mutex, initialized for `Write-first'
+
+    waiter cw_(Write);
+
+
+Next, we have to spell out how the condition waiter is managed at both client
+and server ends - that is, which does the read | write, and the lock-type
+used to manage the underlying mutex at each end.
+
+
+
+
+    // perform write over resource, with unique_lock over shared_mutex
+
+    // Server-side:
+    waiter::result_type<boost::unique_lock>::type lock = cw_.operator()<Write, boost::unique_lock>();
+
+    // do critical work, ..write to resource
+
+
+
+At the other, will have complimentary opposing call:
+
+
+    // perform read over resource, with shared_lock over shared_mutex
+
+    // Client-side
+    waiter::result_type<boost::shared_lock>::type lock = cw_.operator()<Read, boost::shared_lock>();
+
+    // do critical work, ..read from resource
+
+
+
+Last, once all access is finished with, we must unlock the managed mutex, and
+notify the condition-variable at either end.
+
+IMPORTANT:  the *same* lock-type must be specified to unlock the mutex as was
+done to lock it.  IN the example throughout, a shared_lock at the client-side,
+and a unique_lock at the server_side.
+
+
+    // Client-side:
+    cw_.operator()<NotifyOne, boost::shared_lock>();
+
+
+    // Server-side:
+    cw_.operator()<NotifyAll, boost::unique_lock>();
+
+
+
+
+[[ TODO ]]
+
+    * Support for a timed RW-condition_wait object is pending.
+
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+

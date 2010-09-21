@@ -1,0 +1,81 @@
+/////////////////////////////////////////////////////////////////////////////////////////////
+// Copyright (c) 2010 Manfred Doudar, NICTA Ltd.
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+/////////////////////////////////////////////////////////////////////////////////////////////
+
+
+IMAGE_HEADER:  a utility library for querying image-file header information, using OpenCV to
+do so under the hood.
+
+
+    namespace nicta {
+    namespace vibe {
+    namespace header {
+
+        class image_header;
+
+    } } } // namespace nicta::vibe::header
+
+
+
+
+-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+THE API:
+-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+
+
+    * explicit
+      image_header(const char* filename) throw (nicta_exception);
+
+          - Constructor, taking the file name of the image we want to query as input.
+
+
+
+    * int
+      depth() const throw ();
+
+          - Returns the pixel depth of the image in file.
+
+
+
+    * int
+      width() const throw ();
+
+          - Returns the image width of the image in file.
+
+
+
+    * int
+      height() const throw ();
+
+          - Returns the image height of the image in file.
+
+
+
+    * bool
+      is_color() const throw ();
+
+          - Returns `true' if the image in file is color, and `false' otherwise.
+
+
+
+    * bool
+      is_integral() const throw ();
+
+          - Return `true' if the image pixel depth is of non-floating point type.
+
+
+
+    * const char*
+      filename() const throw ();
+
+          - Return the filename passed on construction.
+
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+

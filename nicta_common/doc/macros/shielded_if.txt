@@ -1,0 +1,52 @@
+/////////////////////////////////////////////////////////////////////////////////////////////
+// Copyright (c) 2010 Manfred Doudar, NICTA Ltd.
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+/////////////////////////////////////////////////////////////////////////////////////////////
+
+
+NICTA_SHIELDED_IF:  is a useful macro to help get around embedding expressions in a 
+call to BOOST_PP_IF that contain multiple commas - and thereby avoid the comma
+seperated arguments being treated as arguments to the BOOST_PP_IF macro.
+
+
+    #define NICTA_SHIELDED_IF(n, pretext, body, posttext) BOOST_PP_IF(n, pretext, ) body BOOST_PP_IF(n, posttext, )
+
+
+NOTE:  the macro above has an empty else branch!
+
+
+
+
+[[ PROBLEM EXAMPLE ]]
+
+
+    * Assume:   n = 3
+
+      BOOST_PPP_IF(n, template < BOOST_PP_ENUM_PARAMS(n, typename T)>, )
+
+          ---> expands to:   BOOST_PP_IF(3, template< typename T0, typename T1, typename T2 > , )
+
+      ...resulting in an error because BOOST_PP_IF only takes 3 arguments, but
+      the BOOST_PP_IF macro has now unintentionally been given 5 arguments.
+
+
+
+[[ PROBLEM SOLUTION ]]
+
+
+    * Assume:   n = 3
+
+      NICTA_SHIELDED_IF(n, template <, BOOST_PP_ENUM_PARAMS(n, typename T), >)
+
+          ---> expands to:   template <typename T0, typename T1, typename T2>
+
+      ...as desired.
+
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+

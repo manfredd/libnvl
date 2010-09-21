@@ -1,0 +1,42 @@
+/////////////////////////////////////////////////////////////////////////////////////////////
+// Copyright (c) 2010 Manfred Doudar, NICTA Ltd.
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+/////////////////////////////////////////////////////////////////////////////////////////////
+
+
+WHAT IS TO BE FOUND HERE:
+
+
+[[ NVL++ LIBRARIES ]]
+
+        - image                            [image library]
+        - video                            [video library]
+        - nicta_common                     [common utilities/ libraries]
+        - thread                           [thread library wrapper]
+        - ocv_matrix                       [matrix library]
+        - ocv_converters                   [matrix utility library]
+        - image_header                     [library for probing image headers]
+        - avi_header                       [library for probing avi headers]
+        - static_association               [static associative map]
+        - fwd                              [implementation detail]
+
+
+
+[[ THIRD PARTY LIBRARIES ]]
+
+        - third-party                      [patched OpenCV-1.1pre1 tarball; ffmpeg tarball]
+
+
+
+[[ CODING STANDARD ]]
+
+        - n0019.pdf                        [C++ coding standard/ guidelines for nvl++]
+
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+

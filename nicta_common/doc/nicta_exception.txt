@@ -1,0 +1,76 @@
+/////////////////////////////////////////////////////////////////////////////////////////////
+// Copyright (c) 2010 Manfred Doudar, NICTA Ltd.
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+/////////////////////////////////////////////////////////////////////////////////////////////
+
+
+NICTA_EXCEPTION:  a general-purpose exceptions class for raising and reporting errors.
+
+
+    namespace nicta {
+
+        class nicta_exception;
+
+    } // namespace nicta
+
+
+
+
+-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+THE API:
+-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.-.
+
+
+    * explicit nicta_exception(const char* error);
+
+          - Constructor, taking a string `error' to qualify an exception.
+
+
+
+    * nicta_exception(const std::string& error,                       // the error to report
+                      const std::string& method = "",                 // the method-name from which the exception was raised
+                      const std::string& classname = "");             // the class-name from which the exception was raised
+
+          - Constructor.
+
+
+
+    * virtual
+      const char*
+      what() const throw ();
+
+          - Canonical overridden `what' method to report the error thrown.
+
+
+
+    * virtual
+      const std::string
+      nice_what() const throw ();
+
+          - Variant on the `what' method, reporting a nicely formatted error message.
+
+
+
+    * virtual
+      const std::string
+      descriptor() const throw ();
+
+          - Returns the `error' message (first argument) passed to the constructor.
+
+
+
+    * virtual
+      void
+      terminate() const throw ();
+
+          - Dumps a nicely formatted error string to the standard error stream,
+            and then calls exit.
+
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
