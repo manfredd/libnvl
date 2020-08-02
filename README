@@ -6,7 +6,163 @@
 /////////////////////////////////////////////////////////////////////////////////////////////
 
 
-INSTRUCTIONS:
+
+Herein, a Computer Vision library under C++ Boost License, developed 
+appropriately wrapping OpenCV with genericity in mind to facilitate 
+computer-vision tasks without much of the boilerplate code often seen, 
+in a type-safe manner, using modern C++ techniques and paradigms.  
+The library is thread-safe and separates algorithm from implementation 
+in policy-like fashion. Multiple image streams are handled with ease.
+
+There are multiple sub-libraries in the package, primary are:
+
+  - image library
+  - video library
+  - matrix library
+  - thread library (wraps a good deal of Boost.Thread)
+  - common utility libraries
+
+
+Code tested and developed under Linux, using GCC.
+
+
+Where to get it:
+
+http://users.cecs.anu.edu.au/~manfredd/nvl++.tar.bz2
+http://users.cecs.anu.edu.au/~manfredd/nvl++.zip
+
+
+Examples for the curious:
+
+
+=======================================
+** Here's an example of face-detection:
+=======================================
+
+
+camera_device< > camera;
+video_server< > server(camera);
+video_client< > client(&server);
+
+// algorithm
+face_detect ftor("haarcascade_frontalface_alt.xml");
+
+// run it
+client(ftor);
+
+
+===============================================
+** Want to thread and connect multiple streams:
+===============================================
+
+
+using namespace boost;
+
+controller< > ctrl1;
+video_server< > server1(&ctrl1, "video1.avi");
+video_server< > server2(&ctrl1, "video2.avi");
+video_client< > client1(&ctrl1, &server1, &server2);
+video_client< > client2(&ctrl1, &server1);
+
+controller< > ctrl2;
+video_server< > server3(&ctrl2, "video1.avi");
+video_client< > client3(&ctrl2, &server3);
+
+thread ctrl1_thd(ref(ctrl1));
+thread ctrl2_thd(ref(ctrl2));
+thread server1_thd(ref(server1));
+thread server2_thd(ref(server2));
+thread server3_thd(ref(server3));
+
+// algorithm
+play_stream< > ftor;
+
+// run it
+thread client1_thd(bind(&video_client< >::operator()<play_stream< > >,
+                        cref(client1),
+                        ref(ftor)));
+
+// sync off server1 (redundant, only 1 server)
+// play stream 2secs from now, then 800ms thereafter
+posix_time::ptime now = posix_time::mircosec_clock::local_time();
+thread client2_thd(bind(&video_client< >::operator()<play_stream< > >,
+                        cref(client2),
+                        cref(server1),
+                        now + posix_time::seconds(2),
+                        posix_time::milliseconds(800),
+                        ref(ftor)));
+
+// sync off server3 (redundant, only 1 server)
+thread client3_thd(bind(&video_client< >::operator()<play_stream< > >,
+                        cref(client3),
+                        cref(server3),
+                        now + posix_time::seconds(5),
+                        posix_time::seconds(0),
+                        ref(ftor)));
+
+client3_thd.join();
+client2_thd.join();
+client1_thd.join();
+ctrl2_thd.join();
+ctrl1_thd.join();
+
+
+===========================================
+** Here's an example of algorithm chaining:
+===========================================
+
+
+- below we do histogram equalization on image stream,
+  then we do phosphene rendering of the stream, and display
+
+[note: I've not released either histeq or phosphene algorithms, but
+library doco details how you'd write such algorithms of your own].
+
+
+std::vector<variant< pipe::visitable<histeq::streamable> *
+                   , pipe::visitable<phosphene::streamable> *
+                   >
+           > algo_stream;  
+
+// histogram equalization algo
+streamable::histeq_streamable<depth_8u, bgr_p> heq_stream;
+algo_stream.push_back(&heq_stream);
+
+// phosphene algo
+streamable::phosphene_streamable<depth_8u, bgr_p>
+            p_stream(gain_control,
+                     gamma_correction,
+                     x_count,
+                     y_count);
+algo_stream.push_back(&p_stream);
+
+// set up the pipe
+pipe::pipe_stream2< depth_8u
+                  , bgr_p
+                  , histeq::streamable< depth_8u
+                                      , bgr_p
+                                      >::base_type::result_type  
+                  , pipe::visitable<histeq::streamable>
+                  , depth_8u
+                  , bgr_p
+                  , pipe::display_tag::type
+                  , pipe::visitable<phosphene::streamable>
+                  , pipe::visitor
+                  , std::vector
+                  > pipe(std::move(algo_stream));  
+
+camera_device< > camera;
+video_server< > server(camera);
+video_client< > client(&server);
+
+// run it.. feed the pipe to client
+client(pipe);
+
+
+
+
+
+GETTING STARTED INSTRUCTIONS:
 ==================================================================================
 
 1.  read  3rd-party/doc/README
